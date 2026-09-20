@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduSPARK Seating Allotment</title>
+<style>
+:root{--primary:#2563eb;--bg:#f8fafc;--card:#fff;--border:#e2e8f0;--text:#0f172a;--muted:#64748b;--success:#10b981;--warning:#f59e0b;--danger:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+.container{max-width:1340px;margin:0 auto;padding:20px}
+header{text-align:center;margin-bottom:18px;padding:22px 14px;background:linear-gradient(135deg,#2563eb 0%,#7c3aed 100%);color:white;border-radius:14px;user-select:none;-webkit-user-select:none;position:relative}
+header h1{font-size:2.2rem;font-weight:900;letter-spacing:0.5px;user-select:none;pointer-events:none}
+header .subtitle{font-size:1.05rem;margin-top:6px;opacity:0.95;font-weight:600;user-select:none;pointer-events:none}
+header .locked-badge{position:absolute;top:10px;right:12px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);padding:3px 8px;border-radius:20px;font-size:0.65rem;letter-spacing:0.5px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.card h2{font-size:1rem;font-weight:700;margin-bottom:10px;display:flex;gap:8px;align-items:center}
+.card h2 span.num{background:var(--primary);color:white;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-size:.82rem}
+label{font-size:.8rem;font-weight:600;color:var(--muted);display:block;margin-bottom:4px}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.9rem;background:white}
+input:focus,select:focus{border-color:var(--primary);outline:none;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;background:white}
+th{background:#f1f5f9;padding:8px 7px;font-size:.70rem;text-transform:uppercase;color:var(--muted);text-align:left}
+td{padding:6px 7px;border-top:1px solid var(--border)}
+.btn{padding:8px 14px;border-radius:8px;border:none;font-weight:600;cursor:pointer;font-size:.86rem;display:inline-flex;gap:5px;align-items:center}
+.btn-primary{background:var(--primary);color:white}
+.btn-secondary{background:#f1f5f9;border:1px solid var(--border)}
+.btn-success{background:var(--success);color:white}
+.btn-danger{background:#fee2e2;color:var(--danger);padding:4px 8px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+@media(max-width:768px){.grid-3{grid-template-columns:1fr}}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.stat{background:#f8fafc;border:1px dashed var(--border);padding:6px 10px;border-radius:8px;font-size:.8rem}
+.stat b{color:var(--primary)}
+.alert{padding:9px 11px;border-radius:8px;font-size:.84rem;margin-top:10px}
+.alert-warning{background:#fffbeb;border:1px solid #fde68a;color:#92400e}
+.alert-success{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46}
+.alert-danger{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+.rule-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-top:10px;font-size:.80rem;color:#1e40af}
+.preview-room{margin-bottom:18px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:white}
+.preview-room-header{background:#f8fafc;padding:8px 11px;font-weight:700;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);font-size:.88rem}
+.preview-grid{overflow-x:auto}
+.preview-grid td{font-size:.78rem;text-align:center;min-width:84px;height:50px;border:1px solid #e2e8f0;vertical-align:middle}
+.preview-grid th{text-align:center;font-size:.68rem;padding:5px 3px}
+.cell-exam{font-weight:700;color:var(--primary);display:block;font-size:.88rem}
+.cell-class{font-size:.60rem;background:#f1f5f9;padding:1px 5px;border-radius:10px;display:inline-block;margin-top:1px;color:var(--muted)}
+.empty-cell{color:#cbd5e1;font-style:italic;background:#fcfcfc}
+.center-empty{background:#fffbeb!important;color:#92400e!important;border:2px dashed #fde68a!important}
+.bench-label{background:#fef3c7!important;color:#92400e!important}
+.center-col{background:#ecfdf5!important}
+.btn-group{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.room-names-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:8px}
+.checkbox-card{display:flex;gap:8px;padding:10px;border:2px dashed #cbd5e1;border-radius:10px;margin-top:10px;background:#fffffe}
+.checkbox-card input{width:18px;height:18px}
+footer{text-align:center;padding:16px;font-size:0.8rem;color:var(--muted);margin-top:20px;border-top:1px solid var(--border)}
+footer b{color:var(--primary)}
+</style>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="EduSPARK">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+
+</head>
+<body>
+<div class="container">
+<header id="lockedHeader">
+<div class="locked-badge" style="position:absolute;top:8px;right:10px;background:rgba(255,255,255,0.25);padding:2px 8px;border-radius:12px;font-size:0.6rem">LOCKED</div>
+<h1 id="lockedTitle" contenteditable="false">EduSPARK Seating Allotment</h1>
+<div class="subtitle" id="lockedSubtitle" contenteditable="false">support youtube@newEduSPARK</div>
+</header>
+
+<div class="card">
+<h2><span class="num">1</span> Class & Section</h2>
+<div class="table-wrap"><table><thead><tr><th>Class</th><th>Sec</th><th>First</th><th>Last</th><th>Count</th><th></th></tr></thead><tbody id="classTbody"></tbody></table></div>
+<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+<button class="btn btn-secondary" id="addClassBtn">+ Add</button>
+<button class="btn btn-secondary" id="addSampleBtn">Sample High-Low (6 to 12)</button>
+</div>
+<div class="stats"><div class="stat">Total: <b id="totalStudents">0</b></div><div class="stat">Groups: <b id="totalGroups">0</b></div><div class="stat">Stds: <b id="totalStandards">0</b></div><div class="stat">High-Low Order: <b id="highLowOrderDisplay">-</b></div></div>
+</div>
+
+<div class="card">
+<h2><span class="num">2</span> Exam Details</h2>
+<div class="grid-3">
+<div><label>School Name *</label><input type="text" id="schoolName" placeholder="Enter School Name"></div>
+<div><label>Date *</label><input type="date" id="examDate"></div>
+<div><label>FN/AN *</label><select id="examSession"><option value="FN">FN</option><option value="AN">AN</option></select></div>
+</div>
+<div style="margin-top:8px"><label>Exam Name</label><input type="text" id="examName" placeholder="Quarterly"></div>
+</div>
+
+<div class="card">
+<h2><span class="num">3</span> Room & Bench - Customizable</h2>
+<div class="grid-3">
+<div><label>Rooms</label><input type="number" id="numRooms" min="1" value="4"></div>
+<div><label>Rows/Room</label><input type="number" id="numRows" min="1" value="5"></div>
+<div><label>Benches per Row</label><input type="number" id="numBenches" min="1" max="6" value="2" title="Number of benches in each row (e.g., 2 benches for hall, 3 for big hall)"></div>
+</div>
+<div class="grid-3" style="margin-top:8px">
+<div><label>Students per Bench</label><input type="number" id="studentsPerBench" min="1" max="5" value="3" title="How many students per bench (e.g., 3 for regular, 2 for distanced)"></div>
+<div><label>Bench Seats / Row</label><input type="text" id="benchSeatsPerRowDisplay" disabled style="background:#f1f5f9;font-weight:700"></div>
+<div><label>Total Seats / Row (with center)</label><input type="text" id="totalSeatsPerRowDisplay" disabled style="background:#f1f5f9;font-weight:700"></div>
+</div>
+<div class="checkbox-card">
+<input type="checkbox" id="includeCenter" checked>
+<div style="flex:1"><label for="includeCenter" style="margin:0;font-weight:700;cursor:pointer;color:var(--text)">Enable center single seat per row?</label>
+<div style="font-size:.78rem;color:var(--muted)">Center 1 per row, used only if needed or always per mode.</div></div>
+</div>
+<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<label style="margin:0">Center mode:</label>
+<select id="centerMode" style="width:auto">
+<option value="if_needed">Use only if bench insufficient (blank otherwise)</option>
+<option value="always">Always fill center (7 per row)</option>
+</select>
+</div>
+<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<label style="margin:0">Seating Mode:</label>
+<select id="seatingMode" style="width:auto">
+<option value="random">Random Seating (shuffled, as now) - e.g., 6125,6103,6110...</option>
+<option value="sequential">Sequential Seating (6101,6102,6103... in order) - Column1: 6101,6102... next column next class</option>
+</select>
+</div>
+<div class="stats">
+<div class="stat">Bench cap: <b id="benchTotalCap">0</b></div>
+<div class="stat">With center: <b id="totalCapWithCenter">0</b></div>
+<div class="stat">Status: <b id="capacityStatus">-</b></div>
+</div>
+<div id="capacityAlert"></div>
+<div style="margin-top:10px"><label>Room Names</label><div class="room-names-grid" id="roomNamesContainer"></div></div>
+</div>
+
+<div class="card" style="text-align:center">
+<button class="btn btn-primary" id="generateBtn" style="padding:11px 24px">Generate High-Low Seating</button>
+<div id="validationMsg"></div>
+</div>
+
+<div class="card" id="resultsSection" style="display:none">
+<h2><span class="num">4</span> Results - Download PDFs</h2>
+<div id="warningsBox"></div>
+<div class="btn-group">
+<button class="btn btn-success" id="pdf1Btn">Layout PDF - Room-wise High-Low chart</button>
+<button class="btn btn-success" id="pdf2Btn">Summary PDF - Students per standard per room</button>
+<button class="btn btn-success" id="pdf3Btn">Map PDF - Exam No | Room | Exam No | Room</button>
+</div>
+<h3 style="margin-top:16px;margin-bottom:8px;font-size:.95rem">Preview - Room-wise chart (This exact chart will be downloaded in Layout PDF)</h3>
+<div id="preview"></div>
+</div>
+
+<footer>
+<b id="footerTitle">EduSPARK</b> - <span id="footerSubtitle">support youtube@newEduSPARK</span> | Seating Allotment System | 🔒 Title Locked
+</footer>
+</div>
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script>
+
+// ===== LOCKED TITLE PROTECTION - EduSPARK =====
+(function(){
+  const LOCKED_TITLE = "EduSPARK Seating Allotment";
+  const LOCKED_SUBTITLE = "support youtube@newEduSPARK";
+  const LOCKED_DOC_TITLE = "EduSPARK Seating Allotment";
+  const titleEl = document.getElementById('lockedTitle');
+  const subtitleEl = document.getElementById('lockedSubtitle');
+  const footerTitle = document.getElementById('footerTitle');
+  const footerSubtitle = document.getElementById('footerSubtitle');
+  function enforceLock(){
+    if(titleEl && titleEl.textContent !== LOCKED_TITLE) titleEl.textContent = LOCKED_TITLE;
+    if(subtitleEl && subtitleEl.textContent !== LOCKED_SUBTITLE) subtitleEl.textContent = LOCKED_SUBTITLE;
+    if(footerTitle && footerTitle.textContent !== LOCKED_TITLE) footerTitle.textContent = LOCKED_TITLE;
+    if(footerSubtitle && footerSubtitle.textContent !== LOCKED_SUBTITLE) footerSubtitle.textContent = LOCKED_SUBTITLE;
+    if(document.title !== LOCKED_DOC_TITLE) document.title = LOCKED_DOC_TITLE;
+  }
+  const observer = new MutationObserver(enforceLock);
+  if(titleEl) observer.observe(titleEl, {childList:true, characterData:true, subtree:true});
+  if(subtitleEl) observer.observe(subtitleEl, {childList:true, characterData:true, subtree:true});
+  if(footerTitle) observer.observe(footerTitle, {childList:true, characterData:true, subtree:true});
+  if(footerSubtitle) observer.observe(footerSubtitle, {childList:true, characterData:true, subtree:true});
+  const titleTag = document.querySelector('title');
+  if(titleTag){
+    const titleObserver = new MutationObserver(enforceLock);
+    titleObserver.observe(titleTag, {childList:true, characterData:true, subtree:true});
+  }
+  const header = document.getElementById('lockedHeader');
+  if(header){
+    header.addEventListener('contextmenu', e=>{e.preventDefault();return false;});
+    header.addEventListener('keydown', e=>{e.preventDefault();return false;});
+  }
+  setInterval(enforceLock, 1000);
+})();
+// ===== END LOCK =====
+
+const tbody=document.getElementById('classTbody');
+const totalStudentsEl=document.getElementById('totalStudents');
+const totalGroupsEl=document.getElementById('totalGroups');
+const totalStandardsEl=document.getElementById('totalStandards');
+const highLowOrderDisplay=document.getElementById('highLowOrderDisplay');
+const benchTotalCapEl=document.getElementById('benchTotalCap');
+const totalCapWithCenterEl=document.getElementById('totalCapWithCenter');
+const capacityStatus=document.getElementById('capacityStatus');
+const capacityAlert=document.getElementById('capacityAlert');
+const roomNamesContainer=document.getElementById('roomNamesContainer');
+
+function createClassRow(data={}){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td><select class="classSelect"><option value="6" ${data.classNum==='6'?'selected':''}>6</option><option value="7" ${data.classNum==='7'?'selected':''}>7</option><option value="8" ${data.classNum==='8'?'selected':''}>8</option><option value="9" ${data.classNum==='9'?'selected':''}>9</option><option value="10" ${data.classNum==='10'?'selected':''}>10</option><option value="11" ${data.classNum==='11'?'selected':''}>11</option><option value="12" ${data.classNum==='12'?'selected':''}>12</option></select></td>
+    <td><input type="text" class="sectionInput" placeholder="A" value="${data.section||''}" maxlength="5" style="text-transform:uppercase"></td>
+    <td><input type="number" class="firstInput" placeholder="6101" value="${data.first||''}"></td>
+    <td><input type="number" class="lastInput" placeholder="6125" value="${data.last||''}"></td>
+    <td class="countCell" style="text-align:center;font-weight:600;color:var(--muted)">0</td>
+    <td><button class="btn btn-danger delBtn" title="Remove">X</button></td>
+  `;
+  tbody.appendChild(tr);
+  tr.querySelector('.delBtn').addEventListener('click',()=>{tr.remove();updateStats();});
+  ['change','input'].forEach(ev=>{tr.querySelectorAll('input,select').forEach(el=>el.addEventListener(ev,updateStats));});
+  updateStats();
+}
+function getDistinctStandards(){
+  const set=new Set();
+  document.querySelectorAll('#classTbody tr').forEach(tr=>{
+    const f=parseInt(tr.querySelector('.firstInput').value);const l=parseInt(tr.querySelector('.lastInput').value);
+    if(!isNaN(f)&&!isNaN(l)&&l>=f){set.add(tr.querySelector('.classSelect').value);}
+  });
+  return Array.from(set).map(x=>parseInt(x)).sort((a,b)=>a-b);
+}
+function getHighLowOrder(){
+  const sorted=getDistinctStandards();
+  const result=[];
+  let low=0,high=sorted.length-1;
+  while(low<=high){
+    result.push(sorted[high]);high--;
+    if(low<=high){result.push(sorted[low]);low++;}
+  }
+  return result;
+}
+function updateStats(){
+  let total=0,groups=0;const stds=new Set();
+  document.querySelectorAll('#classTbody tr').forEach(tr=>{
+    const f=parseInt(tr.querySelector('.firstInput').value);const l=parseInt(tr.querySelector('.lastInput').value);const c=tr.querySelector('.classSelect').value;const cell=tr.querySelector('.countCell');
+    if(!isNaN(f)&&!isNaN(l)&&l>=f){cell.textContent=l-f+1;cell.style.color='var(--primary)';total+=l-f+1;groups++;stds.add(c);}else{cell.textContent='0';cell.style.color='var(--muted)';}
+  });
+  totalStudentsEl.textContent=total;totalGroupsEl.textContent=groups;totalStandardsEl.textContent=stds.size;
+  const hl=getHighLowOrder();
+  highLowOrderDisplay.textContent=hl.length?hl.map(x=>`Class ${x}`).join(' -> '):'-';
+  updateCapacity();
+}
+function renderRoomNameInputs(){
+  const n=parseInt(document.getElementById('numRooms').value)||0;
+  roomNamesContainer.innerHTML='';
+  for(let i=0;i<n;i++){const d=document.createElement('div');d.innerHTML=`<label>Room ${i+1}</label><input type="text" class="roomNameInput" data-idx="${i}" value="Room ${i+1}">`;roomNamesContainer.appendChild(d);}
+  updateCapacity();
+}
+function updateCapacity(){
+  const rooms=parseInt(document.getElementById('numRooms').value)||0;
+  const rows=parseInt(document.getElementById('numRows').value)||0;
+  const benches=parseInt(document.getElementById('numBenches').value)||2;
+  const perBench=parseInt(document.getElementById('studentsPerBench').value)||3;
+  const inc=document.getElementById('includeCenter').checked;
+  const benchPerRow = benches * perBench;
+  const totalPerRow = benchPerRow + (inc?1:0);
+  const benchPer=rows*benchPerRow;
+  const totalPer=rows*totalPerRow;
+  // Update displays
+  const benchDisp=document.getElementById('benchSeatsPerRowDisplay');
+  const totalDisp=document.getElementById('totalSeatsPerRowDisplay');
+  if(benchDisp) benchDisp.value = `${benches} x ${perBench} = ${benchPerRow}`;
+  if(totalDisp) totalDisp.value = inc ? `${benchPerRow} + 1 center = ${totalPerRow}` : `${benchPerRow}`;
+  benchTotalCapEl.textContent=`${rooms*benchPer}`;totalCapWithCenterEl.textContent=inc?`${rooms*totalPer}`:`No`;
+  const total=parseInt(totalStudentsEl.textContent)||0;
+  if(total===0){capacityStatus.textContent='-';capacityAlert.innerHTML='';return;}
+  const benchTotal=rooms*benchPer;const totalWith=rooms*totalPer;const cap=inc?totalWith:benchTotal;
+  if(cap<total){capacityStatus.textContent=`Short ${total-cap}`;capacityStatus.style.color='var(--danger)';capacityAlert.innerHTML=`<div class="alert alert-danger">Need ${total}, have ${cap} (Benches ${benches}x${perBench}=${benchPerRow}/row). Increase rooms/rows/benches.</div>`;}
+  else if(inc&&total>benchTotal){capacityStatus.textContent=`Needs ${total-benchTotal} center`;capacityStatus.style.color='var(--warning)';capacityAlert.innerHTML=`<div class="alert alert-warning">Bench ${benchTotal} insufficient, will use ${total-benchTotal} center seats. Bench config ${benches}x${perBench}=${benchPerRow}/row.</div>`;}
+  else{capacityStatus.textContent=`OK`;capacityStatus.style.color='var(--success)';capacityAlert.innerHTML=`<div class="alert alert-success">Capacity OK - ${benches} benches x ${perBench} = ${benchPerRow}/row, Total ${totalPerRow}/row - High-Low: ${highLowOrderDisplay.textContent}</div>`;}
+}
+document.getElementById('addClassBtn').addEventListener('click',()=>createClassRow());
+document.getElementById('numRooms').addEventListener('input',()=>renderRoomNameInputs());
+document.getElementById('numRows').addEventListener('input',updateCapacity);
+document.getElementById('numBenches').addEventListener('input',updateCapacity);
+document.getElementById('studentsPerBench').addEventListener('input',updateCapacity);
+document.getElementById('includeCenter').addEventListener('change',updateCapacity);
+document.getElementById('centerMode').addEventListener('change',updateCapacity);
+document.getElementById('addSampleBtn').addEventListener('click',()=>{
+  tbody.innerHTML='';
+  [
+    {classNum:'6',section:'A',first:6101,last:6125},
+    {classNum:'7',section:'A',first:7101,last:7120},
+    {classNum:'8',section:'A',first:8101,last:8115},
+    {classNum:'9',section:'B',first:9101,last:9125},
+    {classNum:'10',section:'A',first:10101,last:10125},
+    {classNum:'11',section:'A',first:11101,last:11120},
+    {classNum:'12',section:'A',first:12101,last:12125},
+  ].forEach(s=>createClassRow(s));
+});
+function getRoomNames(){return Array.from(document.querySelectorAll('.roomNameInput')).map(inp=>inp.value.trim()||`Room ${parseInt(inp.dataset.idx)+1}`);}
+createClassRow({classNum:'12',section:'A',first:12101,last:12125});
+createClassRow({classNum:'6',section:'A',first:6101,last:6125});
+createClassRow({classNum:'10',section:'A',first:10101,last:10125});
+createClassRow({classNum:'7',section:'A',first:7101,last:7120});
+renderRoomNameInputs();
+document.getElementById('examDate').valueAsDate=new Date();
+updateCapacity();
+
+function shuffleArray(a){const arr=[...a];for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+function getClassGroups(){
+  const groups=[];let valid=true,msg='';
+  const seatingMode=document.getElementById('seatingMode')?.value||'random';
+  document.querySelectorAll('#classTbody tr').forEach(tr=>{
+    const classNum=tr.querySelector('.classSelect').value;
+    const section=tr.querySelector('.sectionInput').value.trim().toUpperCase()||'A';
+    const first=parseInt(tr.querySelector('.firstInput').value);
+    const last=parseInt(tr.querySelector('.lastInput').value);
+    if(isNaN(first)||isNaN(last)||last<first){valid=false;msg='Check numbers';return;}
+    const students=[];for(let i=first;i<=last;i++)students.push(i);
+    const finalStudents=seatingMode==='random'?shuffleArray(students):students; // sequential = in order
+    groups.push({classNum,section,label:`${classNum}-${section}`,students:finalStudents,count:finalStudents.length});
+  });
+  return {groups,valid,msg};
+}
+let lastResult=null;
+
+function generateAllotment(groups,numRooms,rows,includeCenter,centerMode,roomNames,benches,perBench){
+  benches = benches||2; perBench = perBench||3;
+  const benchSeatsPerRow = benches * perBench;
+  const cols=includeCenter?benchSeatsPerRow+1:benchSeatsPerRow;
+  const centerCol=Math.floor(benchSeatsPerRow/2); // center in middle
+  let benchCols=[];
+  for(let i=0;i<cols;i++){ if(includeCenter && i===centerCol) continue; benchCols.push(i); }
+  const seatingMode=document.getElementById('seatingMode')?.value||'random';
+  const standardMap={};
+  groups.forEach(g=>{
+    if(!standardMap[g.classNum]) standardMap[g.classNum]={classNum:g.classNum,students:[],label:`Class ${g.classNum}`};
+    g.students.forEach(ex=>{
+      standardMap[g.classNum].students.push({examNo:ex,label:g.label,classNum:g.classNum,section:g.section});
+    });
+  });
+  Object.values(standardMap).forEach(pool=>{
+    if(seatingMode==='random'){
+      pool.students=shuffleArray(pool.students);
+    }else{
+      // Sequential: sort by examNo ascending (6101,6102...), sections will be grouped but still sequential
+      pool.students.sort((a,b)=>a.examNo-b.examNo);
+    }
+    pool.ptr=0;pool.remaining=pool.students.length;
+  });
+  let standards=Object.values(standardMap);
+  const distinctSorted=Object.keys(standardMap).map(x=>parseInt(x)).sort((a,b)=>a-b);
+  const highLowOrder=[];
+  let low=0,high=distinctSorted.length-1;
+  while(low<=high){
+    highLowOrder.push(distinctSorted[high]);high--;
+    if(low<=high){highLowOrder.push(distinctSorted[low]);low++;}
+  }
+  const stdByClassNum={};
+  standards.forEach(s=>{stdByClassNum[parseInt(s.classNum)]=s;});
+
+  let rooms=[];
+  for(let r=0;r<numRooms;r++){
+    rooms.push({roomNo:r+1,roomName:roomNames[r]||`Room ${r+1}`,grid:Array.from({length:rows},()=>Array(cols).fill(null)),colAssignments:Array(cols).fill(null)});
+  }
+  let warnings=[];
+  const allColsToFill = (includeCenter && centerMode==='always') ? [...Array(cols).keys()] : benchCols;
+
+  function getNextStudentAvoidingSection(pool, topLabel, isSequential){
+    if(pool.remaining<=0) return null;
+    if(isSequential){
+      // For sequential mode: strict sequential order, no swapping to avoid section
+      // Just return next in order, even if same section behind (to keep 6101,6102,6103...)
+      const stu=pool.students[pool.ptr++];
+      pool.remaining--;
+      if(topLabel && stu.label===topLabel){
+        warnings.push(`Sequential: same section behind ${stu.label} behind ${topLabel} (kept sequential)`);
+      }
+      return stu;
+    }
+    for(let i=pool.ptr;i<pool.students.length;i++){
+      if(topLabel==null || pool.students[i].label!==topLabel){
+        if(i!==pool.ptr){
+          const tmp=pool.students[pool.ptr];
+          pool.students[pool.ptr]=pool.students[i];
+          pool.students[i]=tmp;
+        }
+        const stu=pool.students[pool.ptr++];
+        pool.remaining--;
+        return stu;
+      }
+    }
+    const stu=pool.students[pool.ptr++];
+    pool.remaining--;
+    warnings.push(`Same section behind forced: ${stu.label} behind ${topLabel}`);
+    return stu;
+  }
+
+  for(let roomIdx=0;roomIdx<numRooms;roomIdx++){
+    const room=rooms[roomIdx];
+    let highLowPointer=0;
+    let prevClass=null;
+    for(let colPos=0;colPos<allColsToFill.length;colPos++){
+      const col=allColsToFill[colPos];
+      if(centerMode==='if_needed' && includeCenter && col===centerCol) continue;
+      let chosen=null;
+      let attempts=0;
+      while(attempts<highLowOrder.length*2){
+        const desiredClassNum=highLowOrder[highLowPointer % highLowOrder.length];
+        highLowPointer++;
+        attempts++;
+        const pool=stdByClassNum[desiredClassNum];
+        if(!pool || pool.remaining<=0) continue;
+        if(pool.classNum===prevClass) continue;
+        chosen=pool;
+        break;
+      }
+      if(!chosen){
+        let cands=standards.filter(s=>s.remaining>0 && s.classNum!==prevClass);
+        if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
+        if(cands.length===0) break;
+        cands.sort((a,b)=>b.remaining-a.remaining);
+        chosen=cands[0];
+      }
+      room.colAssignments[col]=chosen;
+      prevClass=chosen.classNum;
+      for(let row=0;row<rows;row++){
+        if(chosen.remaining<=0){
+          let leftNeighborClass=null;
+          if(colPos>0){
+            const leftCol=allColsToFill[colPos-1];
+            if(room.colAssignments[leftCol]) leftNeighborClass=room.colAssignments[leftCol].classNum;
+          }
+          let nextCands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass);
+          if(nextCands.length===0) nextCands=standards.filter(s=>s.remaining>0);
+          if(nextCands.length===0) break;
+          nextCands.sort((a,b)=>b.remaining-a.remaining);
+          chosen=nextCands[0];
+          if(room.colAssignments[col].classNum!==chosen.classNum){
+            warnings.push(`${room.roomName} Col ${col+1} Row ${row+1}: switched from Class ${room.colAssignments[col].classNum} to Class ${chosen.classNum}`);
+          }
+        }
+        const topLabel=row>0?room.grid[row-1][col]?.label:null;
+        const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
+        const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
+        if(!stu) break;
+        room.grid[row][col]={...stu};
+      }
+    }
+  }
+
+  let leftover=standards.reduce((s,x)=>s+x.remaining,0);
+  let centerUsed=0;
+  if(includeCenter && centerMode==='if_needed' && leftover>0){
+    for(let roomIdx=0;roomIdx<numRooms && leftover>0;roomIdx++){
+      const room=rooms[roomIdx];
+      let leftNeighborClass=room.colAssignments[2]?.classNum||null;
+      let rightNeighborClass=room.colAssignments[4]?.classNum||null;
+      let chosen=null;
+      let attempts=0;
+      let hlPtr=0;
+      while(attempts<highLowOrder.length*2){
+        const desired=highLowOrder[hlPtr % highLowOrder.length];hlPtr++;attempts++;
+        const pool=stdByClassNum[desired];
+        if(!pool || pool.remaining<=0) continue;
+        if(pool.classNum===leftNeighborClass || pool.classNum===rightNeighborClass) continue;
+        chosen=pool;break;
+      }
+      if(!chosen){
+        let cands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass && s.classNum!==rightNeighborClass);
+        if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
+        if(cands.length===0) break;
+        cands.sort((a,b)=>b.remaining-a.remaining);
+        chosen=cands[0];
+      }
+      room.colAssignments[centerCol]=chosen;
+      for(let row=0;row<rows && leftover>0;row++){
+        if(room.grid[row][centerCol]) continue;
+        if(chosen.remaining<=0){
+          let cands=standards.filter(s=>s.remaining>0);
+          if(cands.length===0) break;
+          cands.sort((a,b)=>b.remaining-a.remaining);
+          chosen=cands[0];
+          room.colAssignments[centerCol]=chosen;
+        }
+        const topLabel=row>0?room.grid[row-1][centerCol]?.label:null;
+        const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
+        const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
+        if(!stu) break;
+        room.grid[row][centerCol]={...stu};
+        centerUsed++;leftover=standards.reduce((s,x)=>s+x.remaining,0);
+      }
+    }
+  }else if(includeCenter && centerMode==='if_needed'){
+    rooms.forEach(r=>{ if(!r.grid.some(row=>row[centerCol])) r.colAssignments[centerCol]=null; });
+  }
+  if(includeCenter && centerMode==='always'){
+    centerUsed=0;
+    rooms.forEach(room=>{for(let row=0;row<rows;row++) if(room.grid[row][centerCol]) centerUsed++;});
+  }
+  const finalLeftover=standards.reduce((s,x)=>s+x.remaining,0);
+  const totalAllotted=groups.reduce((s,x)=>s+x.count,0)-finalLeftover;
+  return {rooms,standards,originalGroups:groups,warnings,leftover:finalLeftover,totalAllotted,cols,rows,includeCenter,benchCols,centerCol,centerUsed,centerMode,highLowOrder,benches,perBench};
+}
+
+function renderPreview(result){
+  const preview=document.getElementById('preview');
+  preview.innerHTML='';
+  result.rooms.forEach(room=>{
+    const div=document.createElement('div');
+    div.className='preview-room';
+    const totalInRoom=room.grid.flat().filter(Boolean).length;
+    // Dynamic bench header based on customizable benches
+    let benchHeader='';
+    if(result.includeCenter){
+      // Build header with benches and center in middle
+      let colsBeforeCenter = result.centerCol;
+      let colsAfterCenter = result.cols - result.centerCol -1;
+      // Count benches before and after center
+      let benchesBefore = Math.ceil(colsBeforeCenter / result.perBench);
+      let benchesAfter = Math.ceil(colsAfterCenter / result.perBench);
+      let headerParts=[];
+      for(let b=0;b<result.benches;b++){
+        let isBeforeCenter = (b*result.perBench) < result.centerCol;
+        if(isBeforeCenter && b*result.perBench + result.perBench === result.centerCol && benchesBefore>0){
+          // Bench ends at center
+          headerParts.push(`<th class="bench-label" colspan="${result.perBench}">Bench${b+1}</th>`);
+          headerParts.push(`<th style="background:#fffbeb">CENTER ${result.centerUsed>0?result.centerUsed+' used':'BLANK'}</th>`);
+        }else if(!isBeforeCenter && b===benchesBefore){
+          // After center, first bench after center already accounted
+          headerParts.push(`<th class="bench-label" colspan="${result.perBench}">Bench${b+1}</th>`);
+        }else if(isBeforeCenter){
+          headerParts.push(`<th class="bench-label" colspan="${result.perBench}">Bench${b+1}</th>`);
+        }else if(!isBeforeCenter){
+          // For simplicity, if center in middle, after center benches
+          if(b>=benchesBefore) headerParts.push(`<th class="bench-label" colspan="${result.perBench}">Bench${b+1}</th>`);
+        }
+      }
+      // Fallback simple if logic complex: just show Bench groups + CENTER
+      if(headerParts.length===0){
+        benchHeader=`<th class="bench-label" colspan="${colsBeforeCenter}">Benches Before Center</th><th style="background:#fffbeb">CENTER ${result.centerUsed>0?result.centerUsed+' used':'BLANK'}</th><th class="bench-label" colspan="${colsAfterCenter}">Benches After Center</th>`;
+      }else{
+        benchHeader=headerParts.join('');
+      }
+    }else{
+      let parts=[];
+      for(let b=0;b<result.benches;b++){
+        parts.push(`<th class="bench-label" colspan="${result.perBench}">Bench${b+1}</th>`);
+      }
+      benchHeader=parts.join('');
+    }
+    const colHeaders=room.colAssignments.map((c,i)=>{
+      let pos='';
+      if(result.includeCenter && i===result.centerCol) pos='CENTER';
+      else{
+        let benchIdx, seatIdx;
+        if(result.includeCenter && i>result.centerCol){
+          let adj=i-1;
+          benchIdx=Math.floor(adj/result.perBench)+1;
+          seatIdx=(adj%result.perBench)+1;
+        }else{
+          benchIdx=Math.floor(i/result.perBench)+1;
+          seatIdx=(i%result.perBench)+1;
+        }
+        pos=`B${benchIdx}-S${seatIdx}`;
+      }
+      const lbl=c?`Class ${c.classNum}`:(result.includeCenter&&i===3?'BLANK':'-');
+      return `<th class="${result.includeCenter&&i===3?'center-col':''}">${pos}<br><small>${lbl}</small></th>`;
+    }).join('');
+    div.innerHTML=`
+      <div class="preview-room-header"><span>${room.roomName} — ${totalInRoom} students | High-Low: ${result.highLowOrder.map(x=>`C${x}`).join(',')}</span><span style="font-size:.72rem;color:var(--muted)">${room.colAssignments.map(c=>c?`Class ${c.classNum}`:'-').join(' | ')}</span></div>
+      <div class="preview-grid"><table>
+        <thead><tr><th>Row</th>${benchHeader}</tr><tr><th></th>${colHeaders}</tr></thead>
+        <tbody>
+          ${room.grid.map((row,r)=>`<tr><th>Row ${r+1}</th>${row.map((cell,cIdx)=>{
+            const isCenter=result.includeCenter&&cIdx===3;
+            if(!cell){return isCenter?`<td class="center-empty">BLANK</td>`:`<td class="empty-cell">EMPTY</td>`;}
+            return `<td class="${isCenter?'center-col':''}"><span class="cell-exam">${cell.examNo}</span><span class="cell-class">${cell.label}</span></td>`;
+          }).join('')}</tr>`).join('')}
+        </tbody>
+      </table></div>
+    `;
+    preview.appendChild(div);
+  });
+}
+
+document.getElementById('generateBtn').addEventListener('click',()=>{
+  const {groups,valid,msg}=getClassGroups();
+  const vMsg=document.getElementById('validationMsg');
+  if(!valid){vMsg.innerHTML=`<div class="alert alert-danger">${msg}</div>`;return;}
+  if(groups.length===0){vMsg.innerHTML=`<div class="alert alert-danger">Add class</div>`;return;}
+  const numRooms=parseInt(document.getElementById('numRooms').value);
+  const numRows=parseInt(document.getElementById('numRows').value);
+  const includeCenter=document.getElementById('includeCenter').checked;
+  const centerMode=document.getElementById('centerMode').value;
+  const roomNames=getRoomNames();
+  const schoolName=document.getElementById('schoolName').value.trim();
+  const examDate=document.getElementById('examDate').value;
+  if(!schoolName){vMsg.innerHTML=`<div class="alert alert-danger">Enter School Name</div>`;return;}
+  if(!examDate){vMsg.innerHTML=`<div class="alert alert-danger">Select date</div>`;return;}
+  const benchTotal=numRooms*numRows*6;
+  const totalWith=numRooms*numRows*7;
+  const totalStudents=groups.reduce((s,g)=>s+g.count,0);
+  const cap=includeCenter?totalWith:benchTotal;
+  if(cap<totalStudents){vMsg.innerHTML=`<div class="alert alert-danger">Cap ${cap} < ${totalStudents}</div>`;return;}
+  const benches=parseInt(document.getElementById('numBenches').value)||2;
+  const perBench=parseInt(document.getElementById('studentsPerBench').value)||3;
+  const result=generateAllotment(groups,numRooms,numRows,includeCenter,centerMode,roomNames,benches,perBench);
+  result.schoolName=schoolName;result.examDate=examDate;result.examSession=document.getElementById('examSession').value;result.examName=document.getElementById('examName').value.trim();
+  result.seatingMode=document.getElementById('seatingMode')?.value||'random';
+  lastResult=result;
+  vMsg.innerHTML=`<div class="alert alert-success">✅ Generated ${result.totalAllotted} with High-Low order ${result.highLowOrder.join('->')} | Mode: ${result.seatingMode==='random'?'Random (shuffled)':'Sequential (6101,6102...)'}. One column = one std.</div>`;
+  const wBox=document.getElementById('warningsBox');
+  wBox.innerHTML=result.warnings.length?`<div class="alert alert-warning">${result.warnings.slice(0,10).join('<br>')}</div>`:`<div class="alert alert-success">✅ High-Low OK</div>`;
+  renderPreview(result);
+  document.getElementById('resultsSection').style.display='block';
+  document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
+});
+
+function getJsPDF(){
+  if(window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+  if(window.jsPDF) return window.jsPDF;
+  return null;
+}
+
+// ===== PDF 1 FIXED - 1 ROOM PER PAGE BIG FONTS FULL PAGE =====
+document.getElementById('pdf1Btn').addEventListener('click',()=>{
+  try{
+    if(!lastResult){alert('Please click Generate first');return;}
+    const JsPDFClass=getJsPDF();
+    if(!JsPDFClass){alert('jsPDF not loaded. Check internet connection.');return;}
+    const doc=new JsPDFClass({orientation:'landscape',unit:'mm',format:'a4'});
+    const fd=new Date(lastResult.examDate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    
+    lastResult.rooms.forEach((room, roomIndex)=>{
+      if(roomIndex>0){
+        doc.addPage('a4','landscape');
+      }
+            // Header with School Name bold centred
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(20);doc.setFont('helvetica','bold');
+      const schoolNameText = lastResult.schoolName || 'School Name';
+      doc.text(schoolNameText, pageWidth/2, 12, {align:'center'});
+      doc.setFontSize(16);doc.setFont('helvetica','bold');
+      doc.text(`EduSPARK Seating Allotment - Seating Layout`,14,18);
+      doc.setFontSize(11);doc.setFont('helvetica','normal');
+      doc.text(`Support: youtube@newEduSPARK | Date: ${fd} | Session: ${lastResult.examSession} | Exam: ${lastResult.examName||'Exam'} | Page ${roomIndex+1}/${lastResult.rooms.length}`,14,23);
+      doc.setFontSize(10);doc.setFont('helvetica','bold');
+      doc.text(`High-Low Order: ${lastResult.highLowOrder.join(' -> ')} | Total: ${lastResult.totalAllotted} | Mode: ${lastResult.seatingMode}`,14,27);
+
+      doc.setFontSize(16);doc.setFont('helvetica','bold');
+      doc.text(`${room.roomName} - ${room.grid.flat().filter(Boolean).length} students`,14,34);
+      doc.setFontSize(11);doc.setFont('helvetica','normal');
+      const colInfo=room.colAssignments.map((c,i)=>{
+        let pos='';
+        if(lastResult.includeCenter && i===lastResult.centerCol) pos='CENTER';
+        else{
+          // Calculate which bench and seat
+          let benchIdx, seatIdx;
+          if(lastResult.includeCenter && i>lastResult.centerCol){
+            let adjusted = i-1;
+            benchIdx = Math.floor(adjusted / lastResult.perBench) +1;
+            seatIdx = (adjusted % lastResult.perBench)+1;
+          }else{
+            benchIdx = Math.floor(i / lastResult.perBench)+1;
+            seatIdx = (i % lastResult.perBench)+1;
+          }
+          pos=`B${benchIdx}-S${seatIdx}`;
+        }
+        return `${pos}:${c?`Class ${c.classNum}`:(lastResult.includeCenter&&i===3?'BLANK':'-')}`;
+      }).join(' | ');
+      doc.text(colInfo,14,39);
+
+      const headRow=['Row'];
+      room.colAssignments.forEach((c,i)=>{
+        let pos='';
+        if(lastResult.includeCenter && i===lastResult.centerCol) pos='CENTER';
+        else{
+          // Calculate which bench and seat
+          let benchIdx, seatIdx;
+          if(lastResult.includeCenter && i>lastResult.centerCol){
+            let adjusted = i-1;
+            benchIdx = Math.floor(adjusted / lastResult.perBench) +1;
+            seatIdx = (adjusted % lastResult.perBench)+1;
+          }else{
+            benchIdx = Math.floor(i / lastResult.perBench)+1;
+            seatIdx = (i % lastResult.perBench)+1;
+          }
+          pos=`B${benchIdx}-S${seatIdx}`;
+        }
+        const classLabel=c?`Class ${c.classNum}`:(lastResult.includeCenter&&i===3?'BLANK':'-');
+        headRow.push(`${pos}\n${classLabel}`);
+      });
+
+      const bodyRows=[];
+      room.grid.forEach((rowArr,rowIdx)=>{
+        const rowData=[`Row ${rowIdx+1}`];
+        rowArr.forEach((cell,cIdx)=>{
+          if(cell){
+            rowData.push(`${cell.examNo}\n${cell.label}`);
+          }else{
+            if(lastResult.includeCenter&&cIdx===3) rowData.push('BLANK');
+            else rowData.push('EMPTY');
+          }
+        });
+        bodyRows.push(rowData);
+      });
+
+      if(typeof doc.autoTable === 'function'){
+        doc.autoTable({
+          startY:42,
+          head:[headRow],
+          body:bodyRows,
+          theme:'grid',
+          styles:{fontSize:14,cellPadding:5,halign:'center',valign:'middle',lineWidth:0.3,minCellHeight:14},
+          headStyles:{fillColor:[37,99,235],textColor:255,fontStyle:'bold',fontSize:13,cellPadding:4},
+          columnStyles:{0:{fillColor:[241,245,249],fontStyle:'bold',fontSize:13}},
+          didParseCell:function(data){
+            if(data.section==='body' && data.column.index>0){
+              const colIdx=data.column.index-1;
+              const cell=room.grid[data.row.index][colIdx];
+              if(cell){
+                const colors={'6':[254,243,199],'7':[219,234,254],'8':[220,252,231],'9':[252,231,243],'10':[224,231,255],'11':[255,237,213],'12':[243,232,255]};
+                const col=colors[cell.classNum];
+                if(col) data.cell.styles.fillColor=col;
+                if(lastResult.includeCenter&&colIdx===3){
+                  data.cell.styles.fillColor=[236,253,245];
+                }
+              }else if(lastResult.includeCenter&&colIdx===3){
+                data.cell.styles.fillColor=[255,251,235];
+              }
+            }
+          }
+        });
+      }
+    });
+
+    const fileName=`EduSPARK_Layout_${lastResult.benches}x${lastResult.perBench}_1PerPage_${fd.replace(/\s/g,'')}_${lastResult.examSession}.pdf`;
+    doc.save(fileName);
+    console.log('Layout PDF 1 per page BIG saved:', fileName);
+  }catch(err){
+    console.error('Layout PDF error:', err);
+    alert('Error generating Layout PDF: '+err.message);
+  }
+});
+
+document.getElementById('pdf2Btn').addEventListener('click',()=>{
+  try{
+    if(!lastResult){alert('Generate first');return;}
+    const JsPDFClass=getJsPDF();
+    if(!JsPDFClass){alert('jsPDF not loaded');return;}
+    const doc=new JsPDFClass({orientation:'landscape',unit:'mm',format:'a4'});
+    const fd=new Date(lastResult.examDate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const pw2 = doc.internal.pageSize.getWidth();
+    doc.setFontSize(18);doc.setFont('helvetica','bold');
+    doc.text(lastResult.schoolName||'School Name', pw2/2, 12, {align:'center'});
+    doc.setFontSize(14);doc.setFont('helvetica','bold');
+    doc.text(`EduSPARK Seating Allotment - Room Summary (High-Low)`,14,18);
+    doc.setFontSize(10);doc.setFont('helvetica','normal');
+    doc.text(`Support: youtube@newEduSPARK | Date: ${fd} ${lastResult.examSession} ${lastResult.examName||''} | High-Low: ${lastResult.highLowOrder.join('->')} | Total: ${lastResult.totalAllotted}`,14,24);
+    const groups=lastResult.originalGroups;
+    const headers=['Room No','Room Name',...groups.map(g=>g.label),'Total','Empty','B1','Center','B2'];
+    const body=[];const grandTotals=Array(groups.length).fill(0);let grandAll=0;
+    lastResult.rooms.forEach(room=>{
+      const counts={};groups.forEach(g=>counts[g.label]=0);
+      let b1=0,center=0,b2=0;
+      room.grid.forEach(row=>{row.forEach((cell,cIdx)=>{
+        if(cell&&counts.hasOwnProperty(cell.label)){
+          counts[cell.label]++;
+          if(lastResult.includeCenter){if(cIdx<3)b1++;else if(cIdx===3)center++;else b2++;}else{if(cIdx<3)b1++;else b2++;}
+        }
+      });});
+      const rc=groups.map(g=>counts[g.label]);rc.forEach((c,i)=>grandTotals[i]+=c);
+      const tot=rc.reduce((a,b)=>a+b,0);grandAll+=tot;
+      const cap=room.grid.length*room.grid[0].length;
+      body.push([room.roomNo,room.roomName,...rc,tot,cap-tot,b1,center,b2]);
+    });
+    const capTotal=lastResult.rooms.length*lastResult.rooms[0].grid.length*lastResult.rooms[0].grid[0].length;
+    body.push(['','TOTAL',...grandTotals,grandAll,capTotal-grandAll,'','','']);
+    if(typeof doc.autoTable === 'function'){
+      doc.autoTable({startY:28,head:[headers],body:body,theme:'grid',styles:{fontSize:7,halign:'center'},headStyles:{fillColor:[16,185,129],textColor:255,fontSize:7}});
+    }
+    doc.save(`EduSPARK_Summary_HighLow_${fd}_${lastResult.examSession}.pdf`);
+  }catch(err){
+    console.error(err);alert('Error Summary PDF: '+err.message);
+  }
+});
+
+document.getElementById('pdf3Btn').addEventListener('click',()=>{
+  try{
+    if(!lastResult){alert('Generate first');return;}
+    const JsPDFClass=getJsPDF();
+    if(!JsPDFClass){alert('jsPDF not loaded');return;}
+    const doc=new JsPDFClass({orientation:'portrait',unit:'mm',format:'a4'});
+    const fd=new Date(lastResult.examDate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    const pw3 = doc.internal.pageSize.getWidth();
+    doc.setFontSize(18);doc.setFont('helvetica','bold');
+    doc.text(lastResult.schoolName||'School Name', pw3/2, 12, {align:'center'});
+    doc.setFontSize(14);doc.setFont('helvetica','bold');
+    doc.text(`EduSPARK Seating Allotment - Exam No to Room Map (High-Low)`,14,18);
+    doc.setFontSize(10);doc.setFont('helvetica','normal');
+    doc.text(`Support: youtube@newEduSPARK | Date: ${fd} ${lastResult.examSession} ${lastResult.examName||''} | High-Low: ${lastResult.highLowOrder.join('->')}`,14,24);
+    doc.setFontSize(9);doc.text(`Format: Exam No | Room | Exam No | Room - continuous`,14,30);
+    const all=[];
+    lastResult.rooms.forEach(room=>{
+      room.grid.forEach((row,rIdx)=>{
+        row.forEach((cell,cIdx)=>{
+          if(cell){
+            all.push({
+              examNo:cell.examNo,
+              label:cell.label,
+              classNum:parseInt(cell.classNum),
+              section:cell.section,
+              roomName:room.roomName,
+            });
+          }
+        });
+      });
+    });
+    all.sort((a,b)=>{
+      if(a.classNum!==b.classNum) return a.classNum-b.classNum;
+      if(a.section!==b.section) return a.section.localeCompare(b.section);
+      return a.examNo-b.examNo;
+    });
+    const bodyWithGroups=[];
+    let currentGroup='';
+    for(let i=0;i<all.length;i+=2){
+      const first=all[i];
+      const groupKey=`${first.classNum}-${first.section} (${first.label})`;
+      if(groupKey!==currentGroup){
+        currentGroup=groupKey;
+        bodyWithGroups.push([{content:`--- ${currentGroup} ---`,colSpan:4,styles:{fillColor:[239,246,255],fontStyle:'bold',halign:'left'}}]);
+      }
+      const second=all[i+1];
+      bodyWithGroups.push([
+        first.examNo,
+        first.roomName,
+        second?second.examNo:'',
+        second?second.roomName:''
+      ]);
+    }
+    if(typeof doc.autoTable === 'function'){
+      doc.autoTable({
+        startY:33,
+        head:[['Exam No','Room No','Exam No','Room No']],
+        body:bodyWithGroups,
+        theme:'grid',
+        styles:{fontSize:9,halign:'center'},
+        headStyles:{fillColor:[124,58,237],textColor:255,fontStyle:'bold'},
+        columnStyles:{
+          0:{fontStyle:'bold',fillColor:[239,246,255]},
+          2:{fontStyle:'bold',fillColor:[239,246,255]},
+        },
+      });
+    }
+    doc.text(`Total Students: ${all.length} | Generated by EduSPARK | youtube@newEduSPARK`,14,doc.internal.pageSize.height-8);
+    doc.save(`EduSPARK_Map_HighLow_${fd}_${lastResult.examSession}.pdf`);
+  }catch(err){
+    console.error(err);alert('Error Map PDF: '+err.message);
+  }
+});
+
+</script>
+
+<script>
+// PWA Service Worker Registration - EduSPARK Mobile App
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg=>console.log('EduSPARK SW registered', reg.scope))
+      .catch(err=>console.log('SW failed', err));
+  });
+}
+</script>
+
+</body>
+</html>
