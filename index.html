@@ -326,26 +326,37 @@ function getClassGroups(){
 }
 let lastResult=null;
 
+
 function generateAllotment(groups,numRooms,rows,includeCenter,centerMode,roomNames,benches,perBench){
   benches = benches||2; perBench = perBench||3;
   const benchSeatsPerRow = benches * perBench;
   const cols=includeCenter?benchSeatsPerRow+1:benchSeatsPerRow;
-  const centerCol=Math.floor(benchSeatsPerRow/2); // center in middle
+  const centerCol=Math.floor(benchSeatsPerRow/2);
   let benchCols=[];
   for(let i=0;i<cols;i++){ if(includeCenter && i===centerCol) continue; benchCols.push(i); }
   const seatingMode=document.getElementById('seatingMode')?.value||'random';
+  
+  // Helper to determine group type: Science (A,B) vs Arts (C,D)
+  function getGroupType(section){
+    const sec = (section||'').toString().trim().toUpperCase();
+    if(!sec) return 'OTHER';
+    const first = sec[0];
+    if(first==='A' || first==='B') return 'SCIENCE'; // 12A,12A1,12B,12B1 etc Science
+    if(first==='C' || first==='D') return 'ARTS';     // 12C,12C1,12D,12D1 Arts
+    return 'OTHER';
+  }
+
   const standardMap={};
   groups.forEach(g=>{
     if(!standardMap[g.classNum]) standardMap[g.classNum]={classNum:g.classNum,students:[],label:`Class ${g.classNum}`};
     g.students.forEach(ex=>{
-      standardMap[g.classNum].students.push({examNo:ex,label:g.label,classNum:g.classNum,section:g.section});
+      standardMap[g.classNum].students.push({examNo:ex,label:g.label,classNum:g.classNum,section:g.section,groupType:getGroupType(g.section)});
     });
   });
   Object.values(standardMap).forEach(pool=>{
     if(seatingMode==='random'){
       pool.students=shuffleArray(pool.students);
     }else{
-      // Sequential: sort by examNo ascending (6101,6102...), sections will be grouped but still sequential
       pool.students.sort((a,b)=>a.examNo-b.examNo);
     }
     pool.ptr=0;pool.remaining=pool.students.length;
@@ -361,6 +372,18 @@ function generateAllotment(groups,numRooms,rows,includeCenter,centerMode,roomNam
   const stdByClassNum={};
   standards.forEach(s=>{stdByClassNum[parseInt(s.classNum)]=s;});
 
+  // For single standard case: create section pools from groups
+  let sectionPools = [];
+  let isSingleStandard = distinctSorted.length===1;
+  if(isSingleStandard){
+    sectionPools = groups.map(g=>{
+      let students = g.students.map(ex=>({examNo:ex,label:g.label,classNum:g.classNum,section:g.section,groupType:getGroupType(g.section)}));
+      if(seatingMode==='random') students=shuffleArray(students);
+      else students.sort((a,b)=>a.examNo-b.examNo);
+      return {label:g.label,section:g.section,classNum:g.classNum,groupType:getGroupType(g.section),students,ptr:0,remaining:students.length};
+    });
+  }
+
   let rooms=[];
   for(let r=0;r<numRooms;r++){
     rooms.push({roomNo:r+1,roomName:roomNames[r]||`Room ${r+1}`,grid:Array.from({length:rows},()=>Array(cols).fill(null)),colAssignments:Array(cols).fill(null)});
@@ -371,8 +394,6 @@ function generateAllotment(groups,numRooms,rows,includeCenter,centerMode,roomNam
   function getNextStudentAvoidingSection(pool, topLabel, isSequential){
     if(pool.remaining<=0) return null;
     if(isSequential){
-      // For sequential mode: strict sequential order, no swapping to avoid section
-      // Just return next in order, even if same section behind (to keep 6101,6102,6103...)
       const stu=pool.students[pool.ptr++];
       pool.remaining--;
       if(topLabel && stu.label===topLabel){
@@ -398,99 +419,222 @@ function generateAllotment(groups,numRooms,rows,includeCenter,centerMode,roomNam
     return stu;
   }
 
+  // Helper to get section pool for single standard
+  function getNextStudentFromSectionPool(pool, topLabel, isSequential){
+    if(pool.remaining<=0) return null;
+    if(isSequential){
+      const stu=pool.students[pool.ptr++];
+      pool.remaining--;
+      return stu;
+    }
+    for(let i=pool.ptr;i<pool.students.length;i++){
+      if(topLabel==null || pool.students[i].label!==topLabel){
+        if(i!==pool.ptr){
+          const tmp=pool.students[pool.ptr];
+          pool.students[pool.ptr]=pool.students[i];
+          pool.students[i]=tmp;
+        }
+        const stu=pool.students[pool.ptr++];
+        pool.remaining--;
+        return stu;
+      }
+    }
+    const stu=pool.students[pool.ptr++];
+    pool.remaining--;
+    return stu;
+  }
+
   for(let roomIdx=0;roomIdx<numRooms;roomIdx++){
     const room=rooms[roomIdx];
     let highLowPointer=0;
     let prevClass=null;
+    let prevSection=null;
+    let prevGroupType=null;
+
     for(let colPos=0;colPos<allColsToFill.length;colPos++){
       const col=allColsToFill[colPos];
       if(centerMode==='if_needed' && includeCenter && col===centerCol) continue;
       let chosen=null;
-      let attempts=0;
-      while(attempts<highLowOrder.length*2){
-        const desiredClassNum=highLowOrder[highLowPointer % highLowOrder.length];
-        highLowPointer++;
-        attempts++;
-        const pool=stdByClassNum[desiredClassNum];
-        if(!pool || pool.remaining<=0) continue;
-        if(pool.classNum===prevClass) continue;
-        chosen=pool;
-        break;
-      }
-      if(!chosen){
-        let cands=standards.filter(s=>s.remaining>0 && s.classNum!==prevClass);
-        if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
-        if(cands.length===0) break;
-        cands.sort((a,b)=>b.remaining-a.remaining);
-        chosen=cands[0];
-      }
-      room.colAssignments[col]=chosen;
-      prevClass=chosen.classNum;
-      for(let row=0;row<rows;row++){
-        if(chosen.remaining<=0){
-          let leftNeighborClass=null;
-          if(colPos>0){
-            const leftCol=allColsToFill[colPos-1];
-            if(room.colAssignments[leftCol]) leftNeighborClass=room.colAssignments[leftCol].classNum;
-          }
-          let nextCands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass);
-          if(nextCands.length===0) nextCands=standards.filter(s=>s.remaining>0);
-          if(nextCands.length===0) break;
-          nextCands.sort((a,b)=>b.remaining-a.remaining);
-          chosen=nextCands[0];
-          if(room.colAssignments[col].classNum!==chosen.classNum){
-            warnings.push(`${room.roomName} Col ${col+1} Row ${row+1}: switched from Class ${room.colAssignments[col].classNum} to Class ${chosen.classNum}`);
-          }
+
+      if(isSingleStandard){
+        // Single standard: choose section pool avoiding same section and same group nearby
+        let candidates = sectionPools.filter(p=>p.remaining>0);
+        if(candidates.length===0) break;
+        // First try to avoid same section AND same group
+        let filtered = candidates.filter(p=>p.section!==prevSection && p.groupType!==prevGroupType);
+        if(filtered.length===0){
+          // Try avoid same section only
+          filtered = candidates.filter(p=>p.section!==prevSection);
         }
-        const topLabel=row>0?room.grid[row-1][col]?.label:null;
-        const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
-        const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
-        if(!stu) break;
-        room.grid[row][col]={...stu};
+        if(filtered.length===0){
+          // Try avoid same group only
+          filtered = candidates.filter(p=>p.groupType!==prevGroupType);
+        }
+        if(filtered.length===0) filtered = candidates;
+        // Prefer larger remaining, and for random mode shuffle, for sequential keep order
+        filtered.sort((a,b)=>b.remaining-a.remaining);
+        chosen = filtered[0];
+        // For colAssignment, we store section pool as if it were standard, but with classNum same
+        room.colAssignments[col]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
+        prevSection = chosen.section;
+        prevGroupType = chosen.groupType;
+        prevClass = chosen.classNum; // same for all
+        // Fill rows from this section pool
+        for(let row=0;row<rows;row++){
+          if(chosen.remaining<=0){
+            // Need to switch to another section pool avoiding left neighbor and same section behind
+            let leftSec = prevSection;
+            let leftGroup = prevGroupType;
+            // Find next pool
+            let nextCands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec && p.groupType!==leftGroup);
+            if(nextCands.length===0) nextCands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec);
+            if(nextCands.length===0) nextCands = sectionPools.filter(p=>p.remaining>0 && p.groupType!==leftGroup);
+            if(nextCands.length===0) nextCands = sectionPools.filter(p=>p.remaining>0);
+            if(nextCands.length===0) break;
+            nextCands.sort((a,b)=>b.remaining-a.remaining);
+            chosen = nextCands[0];
+            room.colAssignments[col]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
+            prevSection = chosen.section;
+            prevGroupType = chosen.groupType;
+            warnings.push(`${room.roomName} Col ${col+1} Row ${row+1}: switched section from ${leftSec} to ${chosen.section} to avoid same section/group nearby`);
+          }
+          const topLabel=row>0?room.grid[row-1][col]?.label:null;
+          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
+          const stu=getNextStudentFromSectionPool(chosen, topLabel, isSequential);
+          if(!stu) break;
+          room.grid[row][col]={...stu};
+        }
+      }else{
+        // Multi-standard: original high-low logic with extra group avoidance
+        let attempts=0;
+        while(attempts<highLowOrder.length*2){
+          const desiredClassNum=highLowOrder[highLowPointer % highLowOrder.length];
+          highLowPointer++;
+          attempts++;
+          const pool=stdByClassNum[desiredClassNum];
+          if(!pool || pool.remaining<=0) continue;
+          if(pool.classNum===prevClass) continue;
+          chosen=pool;
+          break;
+        }
+        if(!chosen){
+          let cands=standards.filter(s=>s.remaining>0 && s.classNum!==prevClass);
+          if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
+          if(cands.length===0) break;
+          cands.sort((a,b)=>b.remaining-a.remaining);
+          chosen=cands[0];
+        }
+        room.colAssignments[col]=chosen;
+        prevClass=chosen.classNum;
+        // For multi-standard, we don't track section/group for column, but we will avoid same section behind via getNextStudent
+        for(let row=0;row<rows;row++){
+          if(chosen.remaining<=0){
+            let leftNeighborClass=null;
+            if(colPos>0){
+              const leftCol=allColsToFill[colPos-1];
+              if(room.colAssignments[leftCol]) leftNeighborClass=room.colAssignments[leftCol].classNum;
+            }
+            let nextCands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass);
+            if(nextCands.length===0) nextCands=standards.filter(s=>s.remaining>0);
+            if(nextCands.length===0) break;
+            nextCands.sort((a,b)=>b.remaining-a.remaining);
+            chosen=nextCands[0];
+            if(room.colAssignments[col].classNum!==chosen.classNum){
+              warnings.push(`${room.roomName} Col ${col+1} Row ${row+1}: switched from Class ${room.colAssignments[col].classNum} to Class ${chosen.classNum}`);
+            }
+          }
+          const topLabel=row>0?room.grid[row-1][col]?.label:null;
+          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
+          const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
+          if(!stu) break;
+          room.grid[row][col]={...stu};
+        }
       }
     }
   }
 
-  let leftover=standards.reduce((s,x)=>s+x.remaining,0);
+  let leftover=0;
   let centerUsed=0;
+  if(isSingleStandard){
+    leftover=sectionPools.reduce((s,x)=>s+x.remaining,0);
+  }else{
+    leftover=standards.reduce((s,x)=>s+x.remaining,0);
+  }
+
   if(includeCenter && centerMode==='if_needed' && leftover>0){
     for(let roomIdx=0;roomIdx<numRooms && leftover>0;roomIdx++){
       const room=rooms[roomIdx];
+      // For single standard, left/right group avoidance
+      let leftSec = null, rightSec = null, leftGroup = null, rightGroup = null;
+      if(isSingleStandard){
+        // Find section/group of columns 2 and 4 (around center)
+        const leftCol = benchCols[1]!==undefined ? benchCols[1] : null;
+        const rightCol = benchCols[2]!==undefined ? benchCols[2] : null;
+        if(leftCol!==null && room.colAssignments[leftCol]) { leftSec=room.colAssignments[leftCol].section; leftGroup=room.colAssignments[leftCol].groupType; }
+        if(rightCol!==null && room.colAssignments[rightCol]) { rightSec=room.colAssignments[rightCol].section; rightGroup=room.colAssignments[rightCol].groupType; }
+      }
       let leftNeighborClass=room.colAssignments[2]?.classNum||null;
       let rightNeighborClass=room.colAssignments[4]?.classNum||null;
       let chosen=null;
-      let attempts=0;
-      let hlPtr=0;
-      while(attempts<highLowOrder.length*2){
-        const desired=highLowOrder[hlPtr % highLowOrder.length];hlPtr++;attempts++;
-        const pool=stdByClassNum[desired];
-        if(!pool || pool.remaining<=0) continue;
-        if(pool.classNum===leftNeighborClass || pool.classNum===rightNeighborClass) continue;
-        chosen=pool;break;
-      }
-      if(!chosen){
-        let cands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass && s.classNum!==rightNeighborClass);
-        if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
+
+      if(isSingleStandard){
+        let cands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec && p.section!==rightSec && p.groupType!==leftGroup && p.groupType!==rightGroup);
+        if(cands.length===0) cands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec && p.section!==rightSec);
+        if(cands.length===0) cands = sectionPools.filter(p=>p.remaining>0 && p.groupType!==leftGroup && p.groupType!==rightGroup);
+        if(cands.length===0) cands = sectionPools.filter(p=>p.remaining>0);
         if(cands.length===0) break;
         cands.sort((a,b)=>b.remaining-a.remaining);
         chosen=cands[0];
-      }
-      room.colAssignments[centerCol]=chosen;
-      for(let row=0;row<rows && leftover>0;row++){
-        if(room.grid[row][centerCol]) continue;
-        if(chosen.remaining<=0){
-          let cands=standards.filter(s=>s.remaining>0);
+        room.colAssignments[centerCol]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
+        for(let row=0;row<rows && leftover>0;row++){
+          if(room.grid[row][centerCol]) continue;
+          if(chosen.remaining<=0){
+            let nc = sectionPools.filter(p=>p.remaining>0);
+            if(nc.length===0) break;
+            nc.sort((a,b)=>b.remaining-a.remaining);
+            chosen=nc[0];
+            room.colAssignments[centerCol]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
+          }
+          const topLabel=row>0?room.grid[row-1][centerCol]?.label:null;
+          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
+          const stu=getNextStudentFromSectionPool(chosen, topLabel, isSequential);
+          if(!stu) break;
+          room.grid[row][centerCol]={...stu};
+          centerUsed++; leftover=isSingleStandard?sectionPools.reduce((s,x)=>s+x.remaining,0):standards.reduce((s,x)=>s+x.remaining,0);
+        }
+      }else{
+        let attempts=0; let hlPtr=0;
+        while(attempts<highLowOrder.length*2){
+          const desired=highLowOrder[hlPtr % highLowOrder.length];hlPtr++;attempts++;
+          const pool=stdByClassNum[desired];
+          if(!pool || pool.remaining<=0) continue;
+          if(pool.classNum===leftNeighborClass || pool.classNum===rightNeighborClass) continue;
+          chosen=pool;break;
+        }
+        if(!chosen){
+          let cands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass && s.classNum!==rightNeighborClass);
+          if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
           if(cands.length===0) break;
           cands.sort((a,b)=>b.remaining-a.remaining);
           chosen=cands[0];
-          room.colAssignments[centerCol]=chosen;
         }
-        const topLabel=row>0?room.grid[row-1][centerCol]?.label:null;
-        const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
-        const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
-        if(!stu) break;
-        room.grid[row][centerCol]={...stu};
-        centerUsed++;leftover=standards.reduce((s,x)=>s+x.remaining,0);
+        room.colAssignments[centerCol]=chosen;
+        for(let row=0;row<rows && leftover>0;row++){
+          if(room.grid[row][centerCol]) continue;
+          if(chosen.remaining<=0){
+            let cands=standards.filter(s=>s.remaining>0);
+            if(cands.length===0) break;
+            cands.sort((a,b)=>b.remaining-a.remaining);
+            chosen=cands[0];
+            room.colAssignments[centerCol]=chosen;
+          }
+          const topLabel=row>0?room.grid[row-1][centerCol]?.label:null;
+          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
+          const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
+          if(!stu) break;
+          room.grid[row][centerCol]={...stu};
+          centerUsed++;leftover=standards.reduce((s,x)=>s+x.remaining,0);
+        }
       }
     }
   }else if(includeCenter && centerMode==='if_needed'){
@@ -500,10 +644,11 @@ function generateAllotment(groups,numRooms,rows,includeCenter,centerMode,roomNam
     centerUsed=0;
     rooms.forEach(room=>{for(let row=0;row<rows;row++) if(room.grid[row][centerCol]) centerUsed++;});
   }
-  const finalLeftover=standards.reduce((s,x)=>s+x.remaining,0);
+  const finalLeftover=isSingleStandard?sectionPools.reduce((s,x)=>s+x.remaining,0):standards.reduce((s,x)=>s+x.remaining,0);
   const totalAllotted=groups.reduce((s,x)=>s+x.count,0)-finalLeftover;
-  return {rooms,standards,originalGroups:groups,warnings,leftover:finalLeftover,totalAllotted,cols,rows,includeCenter,benchCols,centerCol,centerUsed,centerMode,highLowOrder,benches,perBench};
+  return {rooms,standards: isSingleStandard?sectionPools:standards,originalGroups:groups,warnings,leftover:finalLeftover,totalAllotted,cols,rows,includeCenter,benchCols,centerCol,centerUsed,centerMode,highLowOrder,benches,perBench,isSingleStandard};
 }
+
 
 function renderPreview(result){
   const preview=document.getElementById('preview');
