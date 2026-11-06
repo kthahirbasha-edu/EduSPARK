@@ -1,7 +1,7 @@
 {
   "name": "EduSPARK Seating Allotment",
   "short_name": "EduSPARK",
-  "description": "School exam seating allotment classes 6-12 - High-Low, customizable benches, PDFs",
+  "description": "School exam seating allotment classes 6-12 - High-Low, customisable benches, store classes locally, PDFs, installable app",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f8fafc",
