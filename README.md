@@ -40,6 +40,17 @@ NEW IN THIS VERSION
    "Generate High-Low Seating" - the room allotment is made for the remaining
    classes only.
 
+6. PDF COLOUR CODING - choose Default / Soft pastel / High contrast / Black & white
+   for the seat colours in the PDFs and attendance sheets (saves ink on B/W printers).
+
+7. ATTENDANCE SHEET PDF - one list per room (S.No, Exam No, Class/Sec, Seat,
+   blank Student Name + Signature, invigilator line). Long rooms continue on a
+   second page and every page repeats the school header.
+
+8. PRINT SIGN BOARD + ATTENDANCE - big room number board (readable from the
+   corridor) plus the attendance sheet, printed straight from the browser.
+   The printed sheets can be in English, Tamil or Hindi.
+
 All the earlier features are unchanged: one column = one standard (sections
 when a single standard is entered), high-low order, section shuffling,
 side / behind rules, sequential & random modes, customizable benches and

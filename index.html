@@ -81,6 +81,15 @@ td{padding:6px 7px;border-top:1px solid var(--border)}
 .modal{background:#fff;border-radius:14px;max-width:480px;width:100%;padding:18px;box-shadow:0 24px 60px rgba(0,0,0,.35);margin:auto;position:relative}
 .modal .modal-x{position:absolute;top:10px;right:12px;background:#f1f5f9;border:none;border-radius:50%;width:30px;height:30px;font-size:1rem;font-weight:700;color:#475569;cursor:pointer;line-height:1}
 .modal .modal-x:hover{background:#e2e8f0}
+.del-body{font-size:.95rem;color:#334155;line-height:1.6}
+.del-body b{color:#b91c1c}
+.del-count{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:8px 10px;margin-top:10px;font-size:.85rem;font-weight:600}
+.del-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.btn-danger-solid{background:#ef4444;color:#fff;padding:9px 16px}
+.btn-danger-solid:hover{background:#dc2626}
+.btn-keep{background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;padding:9px 16px}
+.btn-keep:hover{background:#e2e8f0}
+@media(max-width:600px){.del-actions .btn{flex:1 1 45%;justify-content:center}}
 .modal h3{font-size:1.05rem;font-weight:800;margin-bottom:10px;color:#0f172a;padding-right:34px}
 .modal-h{font-size:.82rem;font-weight:700;color:var(--primary);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.4px}
 .modal ul{padding-left:18px;font-size:.85rem;color:#334155;line-height:1.65;margin:0}
@@ -96,6 +105,39 @@ td{padding:6px 7px;border-top:1px solid var(--border)}
 #classTbody .countCell{width:32px;font-size:.78rem}
 #classTbody .delBtn{padding:3px 6px;font-size:.68rem}
 .preview-grid td{min-width:66px;height:44px}}
+/* v6: attendance / sign board / print */
+#printArea{display:none}
+.btn-indigo{background:#4f46e5;color:#fff}
+.btn-indigo:hover{filter:brightness(1.08)}
+.btn-slate{background:#334155;color:#fff}
+.btn-slate:hover{filter:brightness(1.12)}
+.mini-select{width:auto;padding:5px 8px;font-size:.8rem}
+@media print{
+  html,body{background:#fff!important;margin:0!important;padding:0!important}
+  .container{display:none!important}
+  #printArea{display:block!important;position:static!important}
+  .sheet{page-break-after:always;break-after:page;padding:0;margin:0}
+  .sheet:last-child{page-break-after:auto;break-after:auto}
+}
+.sheet{font-family:Inter,system-ui,Arial,sans-serif;color:#000}
+.sheet-head{text-align:center;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}
+.sheet-head .sc{font-size:20pt;font-weight:900;line-height:1.15}
+.sheet-head .ti{font-size:11pt;font-weight:700;margin-top:2px}
+.sheet-head .mt{font-size:9pt;margin-top:2px}
+.board{text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:170mm}
+.board-room{font-size:74pt;font-weight:900;letter-spacing:2px;line-height:1;margin:14px 0;border:6px solid #000;border-radius:14px;padding:16px 42px}
+.board-meta{font-size:15pt;font-weight:700;margin-top:6px}
+.board-classes{font-size:13pt;margin-top:4px}
+.board-note{font-size:10pt;margin-top:16px;color:#333}
+.att-table{width:100%;border-collapse:collapse;font-size:9.5pt}
+.att-table th{border:1px solid #000;background:#e5e7eb;padding:4px 4px;font-size:8.5pt;text-transform:uppercase}
+.att-table td{border:1px solid #000;padding:3px 4px;height:6.6mm}
+.att-table tr{page-break-inside:avoid;break-inside:avoid}
+@page{margin:10mm}
+.att-table td.nm{width:38%}
+.att-table td.sg{width:22%}
+.att-foot{display:flex;justify-content:space-between;margin-top:12px;font-size:10pt;font-weight:700}
+@media(max-width:600px){#pdfColorScheme,#printLang{width:100%}}
 
 footer{text-align:center;padding:16px;font-size:0.8rem;color:var(--muted);margin-top:20px;border-top:1px solid var(--border)}
 footer b{color:var(--primary)}
@@ -179,6 +221,15 @@ footer b{color:var(--primary)}
 </select>
 </div>
 <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+<label style="margin:0">PDF Colour Coding:</label>
+<select id="pdfColorScheme" class="mini-select" style="width:auto">
+<option value="default">Default - one colour per class (as now)</option>
+<option value="pastel">Soft pastel - very light</option>
+<option value="contrast">High contrast - bold colours</option>
+<option value="bw">Black &amp; white - saves ink</option>
+</select>
+</div>
+<div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
 <label style="margin:0">Seating Mode:</label>
 <select id="seatingMode" style="width:auto">
 <option value="random">Random Seating (shuffled, as now) - e.g., 6125,6103,6110...</option>
@@ -206,7 +257,12 @@ footer b{color:var(--primary)}
 <button class="btn btn-success" id="pdf1Btn">Layout PDF - Room-wise High-Low chart</button>
 <button class="btn btn-success" id="pdf2Btn">Summary PDF - Students per standard per room</button>
 <button class="btn btn-success" id="pdf3Btn">Map PDF - Exam No | Room | Exam No | Room</button>
+<button class="btn btn-indigo" id="pdf4Btn">Attendance Sheet PDF - per room (blank names)</button>
+<button class="btn btn-slate" id="printBtn">Print Sign Board + Attendance</button>
+<span style="display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:.8rem">Sheet language:
+<select id="printLang" class="mini-select"><option value="en">English</option><option value="ta">Tamil</option><option value="hi">Hindi</option></select></span>
 </div>
+<div class="mini-note">Attendance PDF and the printed sheets are made room by room. The sign board and attendance sheet print in Tamil or Hindi too; the PDF files stay in English because standard PDF fonts cannot draw Tamil or Hindi letters.</div>
 <h3 style="margin-top:16px;margin-bottom:8px;font-size:.95rem">Preview - Room-wise chart (This exact chart will be downloaded in Layout PDF)</h3>
 <div id="preview"></div>
 </div>
@@ -221,10 +277,29 @@ footer b{color:var(--primary)}
   </div>
 </div>
 
+<div id="deleteModal" class="modal-backdrop" style="display:none" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+  <div class="modal" style="max-width:452px">
+    <button class="modal-x" id="deleteModalX" aria-label="Close">&times;</button>
+    <h3 id="deleteModalTitle">Delete all stored details?</h3>
+    <div class="del-body" id="deleteModalBody">
+      Do you want to delete all the stored classes and sections kept in this device?
+      <div class="del-count" id="deleteModalCount"></div>
+      <div style="margin-top:10px">The table on the screen will stay as it is. Only the saved memory is cleared, and <b>this cannot be undone</b>.</div>
+    </div>
+    <div class="del-actions">
+      <button class="btn btn-keep" id="deleteModalNo">No, keep it</button>
+      <button class="btn btn-danger-solid" id="deleteModalYes">Yes, delete all</button>
+    </div>
+  </div>
+</div>
+
 <footer>
 <b id="footerTitle">EduSPARK</b> - <span id="footerSubtitle">support youtube@newEduSPARK</span> | Seating Allotment System | 🔒 Title Locked
 </footer>
 </div>
+
+<!-- print sheets live outside .container so they survive the print stylesheet -->
+<div id="printArea"></div>
 
 
 <!-- jsPDF engine embedded: works offline, no CDN, no separate files needed -->
@@ -1335,8 +1410,7 @@ document.getElementById('pdf1Btn').addEventListener('click',()=>{
               const colIdx=data.column.index-1;
               const cell=room.grid[data.row.index][colIdx];
               if(cell){
-                const colors={'6':[254,243,199],'7':[219,234,254],'8':[220,252,231],'9':[252,231,243],'10':[224,231,255],'11':[255,237,213],'12':[243,232,255]};
-                const col=colors[cell.classNum];
+                const col=getClassColor(cell.classNum);
                 if(col) data.cell.styles.fillColor=col;
                 if(lastResult.includeCenter&&colIdx===3){
                   data.cell.styles.fillColor=[236,253,245];
@@ -1474,6 +1548,176 @@ document.getElementById('pdf3Btn').addEventListener('click',()=>{
   }
 });
 
+/* ==================================================================
+   v6 - PDF colour coding schemes, Attendance Sheet PDF, printable
+   Sign Board + Attendance sheets (English / Tamil / Hindi)
+   ================================================================== */
+const PDF_PALETTES = {
+  default:  {'6':[254,243,199],'7':[219,234,254],'8':[220,252,231],'9':[252,231,243],'10':[224,231,255],'11':[255,237,213],'12':[243,232,255]},
+  pastel:   {'6':[255,251,235],'7':[239,246,255],'8':[236,253,245],'9':[253,242,248],'10':[238,242,255],'11':[255,247,237],'12':[250,245,255]},
+  contrast: {'6':[251,191,36],'7':[96,165,250],'8':[52,211,153],'9':[244,114,182],'10':[129,140,248],'11':[251,146,60],'12':[167,139,250]},
+  bw:       {'6':[255,255,255],'7':[243,244,246],'8':[255,255,255],'9':[243,244,246],'10':[255,255,255],'11':[243,244,246],'12':[255,255,255]}
+};
+function getClassColor(classNum){
+  const schemeEl = document.getElementById('pdfColorScheme');
+  const scheme = (schemeEl && schemeEl.value) || 'default';
+  const map = PDF_PALETTES[scheme] || PDF_PALETTES.default;
+  const key = String(classNum);
+  if(map[key]) return map[key];
+  const keys = Object.keys(map);
+  return map[keys[Math.abs(parseInt(key)||0) % keys.length]];
+}
+function pdfSeatLabel(res, i){
+  if(res.includeCenter && i===res.centerCol) return 'CENTER';
+  let benchIdx, seatIdx;
+  if(res.includeCenter && i>res.centerCol){
+    const adj = i-1;
+    benchIdx = Math.floor(adj/res.perBench)+1;
+    seatIdx  = (adj % res.perBench)+1;
+  }else{
+    benchIdx = Math.floor(i/res.perBench)+1;
+    seatIdx  = (i % res.perBench)+1;
+  }
+  return 'B'+benchIdx+'-S'+seatIdx;
+}
+function pdfHeaderBlock(doc, res, titleLine, extraLine, pageInfo){
+  try{ if(typeof EDU_LOGO_B64!=='undefined' && EDU_LOGO_B64){ doc.addImage(EDU_LOGO_B64,'PNG',14,5,14,14); } }catch(e){}
+  const fd = new Date(res.examDate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  pdfCenterText(doc, res.schoolName || 'School Name', 12, 18, 'bold');
+  pdfCenterText(doc, 'EduSPARK Seating Allotment - '+titleLine, 18, 12.5, 'bold');
+  pdfCenterText(doc, `Support: youtube@newEduSPARK | Date: ${fd} | Session: ${res.examSession} | Exam: ${res.examName||'Exam'}${pageInfo?' | '+pageInfo:''}`, 23, 9.5, 'normal');
+  if(extraLine) pdfCenterText(doc, extraLine, 27.5, 10, 'bold');
+}
+
+/* ---------------- ATTENDANCE SHEET PDF - auto-paginated, header on every page ---------------- */
+document.getElementById('pdf4Btn').addEventListener('click', function(){
+  try{
+    if(!lastResult){alert('Please click Generate first');return;}
+    const JsPDFClass=getJsPDF();
+    if(!JsPDFClass){alert('jsPDF not loaded.');return;}
+    const doc=new JsPDFClass({orientation:'landscape',unit:'mm',format:'a4'});
+    let pageNo = 0;
+    lastResult.rooms.forEach(function(room, roomIndex){
+      const count = room.grid.flat().filter(Boolean).length;
+      const rows = [];
+      let n = 0;
+      room.grid.forEach(function(rowArr){
+        rowArr.forEach(function(cell,cIdx){
+          if(!cell) return;
+          n++;
+          rows.push([n, cell.examNo, cell.label, pdfSeatLabel(lastResult,cIdx), '', '']);
+        });
+      });
+      if(!rows.length) return;
+      if(pageNo > 0) doc.addPage('a4','landscape');
+      pageNo++;
+      const roomTitle = room.roomName+' - '+count+' students';
+      const pageInfo  = 'Room '+(roomIndex+1)+'/'+lastResult.rooms.length;
+      if(typeof doc.autoTable === 'function'){
+        doc.autoTable({
+          startY:31,
+          margin:{top:31, bottom:12, left:14, right:14},
+          head:[['S.No','Exam No','Class / Sec','Seat','Student Name','Signature']],
+          body:rows,
+          foot:[['','','','','Invigilator Name & Signature: ______________________','']],
+          theme:'grid',
+          styles:{fontSize:10.5,cellPadding:2.4,valign:'middle',lineWidth:0.3,minCellHeight:8},
+          headStyles:{fillColor:[79,70,229],textColor:255,fontStyle:'bold',fontSize:9.5,halign:'center'},
+          footStyles:{fillColor:[248,250,252],fontStyle:'bold',fontSize:9.5,halign:'left'},
+          columnStyles:{0:{cellWidth:14,halign:'center'},1:{cellWidth:30,halign:'center',fontStyle:'bold'},
+                        2:{cellWidth:28,halign:'center'},3:{cellWidth:26,halign:'center'},
+                        4:{cellWidth:'auto'},5:{cellWidth:52}},
+          didParseCell:function(data){
+            if(data.section==='body' && data.column.index===1){
+              const rowData = rows[data.row.index];
+              if(rowData){
+                const cls = String(rowData[2]||'').split('-')[0];
+                const col = getClassColor(cls);
+                if(col) data.cell.styles.fillColor = col;
+              }
+            }
+          },
+          didDrawPage:function(){
+            pdfHeaderBlock(doc, lastResult, 'Attendance Sheet', roomTitle, pageInfo);
+          }
+        });
+      }
+    });
+    const fd=new Date(lastResult.examDate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    doc.save('EduSPARK_Attendance_'+fd.replace(/ /g,'')+'_'+lastResult.examSession+'.pdf');
+  }catch(err){
+    console.error(err); alert('Error generating Attendance Sheet PDF: '+err.message);
+  }
+});
+
+/* ---------------- PRINT: room sign board + attendance sheet ---------------- */
+const SHEET_TEXT = {
+  en:{board:'SEATING - EXAM HALL', room:'ROOM', students:'students', classes:'Classes in this room',
+      exam:'Exam', date:'Date', session:'Session', att:'ATTENDANCE SHEET', sno:'S.No', examno:'Exam No',
+      cls:'Class', seat:'Seat', name:'Student Name', sign:'Signature', inv:'Invigilator Name & Signature',
+      total:'Total', support:'support youtube@newEduSPARK', note:'Keep this list with the answer scripts'},
+  ta:{board:'தேர்வு அறை - இருக்கை ஒதுக்கீடு', room:'அறை', students:'மாணவர்கள்', classes:'இந்த அறையில் உள்ள வகுப்புகள்',
+      exam:'தேர்வு', date:'தேதி', session:'அமர்வு', att:'வருகைப் பட்டியல்', sno:'வ.எண்', examno:'தேர்வு எண்',
+      cls:'வகுப்பு', seat:'இருக்கை', name:'மாணவர் பெயர்', sign:'கையொப்பம்', inv:'கண்காணிப்பாளர் பெயர் & கையொப்பம்',
+      total:'மொத்தம்', support:'support youtube@newEduSPARK', note:'இந்தப் பட்டியலை விடைத்தாள்களுடன் வைத்திருக்கவும்'},
+  hi:{board:'परीक्षा कक्ष - बैठक व्यवस्था', room:'कक्ष', students:'छात्र', classes:'इस कक्ष की कक्षाएँ',
+      exam:'परीक्षा', date:'दिनांक', session:'सत्र', att:'उपस्थिति पत्रक', sno:'क्र.सं.', examno:'परीक्षा क्रमांक',
+      cls:'कक्षा', seat:'सीट', name:'छात्र का नाम', sign:'हस्ताक्षर', inv:'कक्ष निरीक्षक का नाम एवं हस्ताक्षर',
+      total:'कुल', support:'support youtube@newEduSPARK', note:'इस सूची को उत्तर पुस्तिकाओं के साथ रखें'}
+};
+function sheetEsc(v){
+  return String(v===null||v===undefined?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+document.getElementById('printBtn').addEventListener('click', function(){
+  if(!lastResult){alert('Please click Generate first');return;}
+  const langEl = document.getElementById('printLang');
+  const T = SHEET_TEXT[(langEl && langEl.value) || 'en'] || SHEET_TEXT.en;
+  const fd = new Date(lastResult.examDate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  const school = sheetEsc(lastResult.schoolName||'School Name');
+  const meta = T.exam+': '+sheetEsc(lastResult.examName||'Exam')+' &nbsp;|&nbsp; '+T.date+': '+fd+' &nbsp;|&nbsp; '+T.session+': '+sheetEsc(lastResult.examSession);
+  let html = '';
+  lastResult.rooms.forEach(function(room, roomIndex){
+    const filled = room.grid.flat().filter(Boolean);
+    const count = filled.length;
+    const classes = Array.from(new Set(filled.map(function(c){return c.label;}))).sort();
+    html += '<div class="sheet board">'
+      + '<div class="sheet-head" style="border:none;margin:0;padding:0">'
+      +   '<div class="sc">'+school+'</div>'
+      +   '<div class="ti">'+T.board+'</div>'
+      +   '<div class="mt">'+meta+'</div>'
+      + '</div>'
+      + '<div class="board-room">'+sheetEsc(room.roomName)+'</div>'
+      + '<div class="board-meta">'+count+' '+T.students+'</div>'
+      + '<div class="board-classes">'+T.classes+': '+sheetEsc(classes.join(', '))+'</div>'
+      + '<div class="board-note">'+T.support+' &nbsp;|&nbsp; '+T.note+'</div>'
+      + '</div>';
+    let rows='', n=0;
+    room.grid.forEach(function(rowArr){
+      rowArr.forEach(function(cell,cIdx){
+        if(!cell) return;
+        n++;
+        rows += '<tr><td style="text-align:center">'+n+'</td>'
+              + '<td style="text-align:center;font-weight:700">'+cell.examNo+'</td>'
+              + '<td style="text-align:center">'+sheetEsc(cell.label)+'</td>'
+              + '<td style="text-align:center">'+pdfSeatLabel(lastResult,cIdx)+'</td>'
+              + '<td class="nm"></td><td class="sg"></td></tr>';
+      });
+    });
+    html += '<div class="sheet">'
+      + '<div class="sheet-head">'
+      +   '<div class="sc">'+school+'</div>'
+      +   '<div class="ti">'+T.att+' - '+T.room+' '+sheetEsc(room.roomName)+'</div>'
+      +   '<div class="mt">'+meta+' &nbsp;|&nbsp; '+T.total+': '+count+'</div>'
+      + '</div>'
+      + '<table class="att-table"><thead><tr><th>'+T.sno+'</th><th>'+T.examno+'</th><th>'+T.cls+'</th><th>'+T.seat+'</th><th>'+T.name+'</th><th>'+T.sign+'</th></tr></thead>'
+      + '<tbody>'+rows+'</tbody></table>'
+      + '<div class="att-foot"><span>'+T.inv+'</span><span>'+sheetEsc(room.roomName)+'</span></div>'
+      + '</div>';
+  });
+  document.getElementById('printArea').innerHTML = html;
+  setTimeout(function(){ window.print(); }, 80);
+});
+
 
 /* ==================================================================
    v5 FEATURES - Install App | Store | Fill Classes | Delete All
@@ -1550,6 +1794,8 @@ function readSettings(){
     includeCenter:   document.getElementById('includeCenter').checked,
     centerMode:      document.getElementById('centerMode').value,
     seatingMode:     document.getElementById('seatingMode').value,
+    pdfColorScheme:  document.getElementById('pdfColorScheme') ? document.getElementById('pdfColorScheme').value : 'default',
+    printLang:       document.getElementById('printLang') ? document.getElementById('printLang').value : 'en',
     roomNames:       roomInputs
   };
 }
@@ -1566,6 +1812,10 @@ function applySettings(s){
   if(typeof s.includeCenter === 'boolean') document.getElementById('includeCenter').checked = s.includeCenter;
   if(s.centerMode)  document.getElementById('centerMode').value  = s.centerMode;
   if(s.seatingMode) document.getElementById('seatingMode').value = s.seatingMode;
+  if(s.pdfColorScheme){ const el=document.getElementById('pdfColorScheme'); if(el) el.value=s.pdfColorScheme; }
+  if(s.printLang){ const el=document.getElementById('printLang'); if(el) el.value=s.printLang; }
+  if(s.pdfColorScheme){ const el=document.getElementById('pdfColorScheme'); if(el) el.value=s.pdfColorScheme; }
+  if(s.printLang){ const el=document.getElementById('printLang'); if(el) el.value=s.printLang; }
   renderRoomNameInputs();
   if(Array.isArray(s.roomNames)){
     const ins = document.querySelectorAll('.roomNameInput');
@@ -1620,15 +1870,56 @@ if(fillBtnEl) fillBtnEl.addEventListener('click', function(){
 });
 
 /* ---- DELETE ALL ---- */
-if(deleteAllBtnEl) deleteAllBtnEl.addEventListener('click', function(){
+/* ---- DELETE ALL: asks first with an in-app Yes / No message box ---- */
+const deleteModalEl = document.getElementById('deleteModal');
+function openDeleteModal(){
   const data = lsGet(LS_CLASSES);
-  if(!data && !lsGet(LS_SETTINGS)){ flashMsg('warning','There is nothing stored to delete.'); return; }
-  if(!confirm('Delete ALL stored classes, sections, strength and room settings from this device?\n\nThis cannot be undone. The table on screen stays as it is.')) return;
+  const rows = (data && data.classes) || [];
+  const total = rows.reduce(function(s,r){ return s + (r.strength||0); }, 0);
+  const countEl = document.getElementById('deleteModalCount');
+  if(countEl){
+    countEl.innerHTML = rows.length
+      ? 'Stored now: <b style="color:#991b1b">'+rows.length+' classes</b> ('+
+        rows.map(function(c){return c.classNum+c.section;}).join(', ')+') with '+total+' students.'
+      : 'Only your room / exam settings are stored right now.';
+  }
+  if(!deleteModalEl){
+    // safety fallback if the box is unavailable
+    if(window.confirm('Do you want to delete all the stored classes?')) doDeleteAll();
+    return;
+  }
+  deleteModalEl.style.display = 'flex';
+  const yesBtn = document.getElementById('deleteModalYes');
+  if(yesBtn) setTimeout(function(){ try{ yesBtn.focus(); }catch(e){} }, 40);
+}
+function closeDeleteModal(){
+  if(deleteModalEl) deleteModalEl.style.display = 'none';
+}
+function doDeleteAll(){
   lsDel(LS_CLASSES); lsDel(LS_SETTINGS); MEM_STORE = {};
   try{ localStorage.clear(); }catch(e){}
   renderStoredSummary();
+  closeDeleteModal();
   flashMsg('success','✓ All stored details have been cleared from this device. The table on screen is untouched (click Store again if you want to keep it).');
+}
+if(deleteAllBtnEl) deleteAllBtnEl.addEventListener('click', function(){
+  const data = lsGet(LS_CLASSES);
+  if(!data && !lsGet(LS_SETTINGS)){ flashMsg('warning','There is nothing stored to delete.'); return; }
+  openDeleteModal();
 });
+(function(){
+  const yes = document.getElementById('deleteModalYes');
+  const no  = document.getElementById('deleteModalNo');
+  const x   = document.getElementById('deleteModalX');
+  if(yes) yes.addEventListener('click', doDeleteAll);
+  if(no)  no.addEventListener('click', closeDeleteModal);
+  if(x)   x.addEventListener('click', closeDeleteModal);
+  if(deleteModalEl) deleteModalEl.addEventListener('click', function(e){ if(e.target === deleteModalEl) closeDeleteModal(); });
+  document.addEventListener('keydown', function(e){
+    if(!deleteModalEl || deleteModalEl.style.display === 'none') return;
+    if(e.key === 'Escape'){ closeDeleteModal(); }
+  });
+})();
 
 /* ---- STORED SUMMARY LINE ---- */
 function renderStoredSummary(){
@@ -1650,7 +1941,7 @@ function renderStoredSummary(){
 
 /* ---- auto-keep settings (school name, rooms, benches...) ---- */
 (function autosaveSettings(){
-  const ids = ['schoolName','examName','examSession','numRooms','numRows','numBenches','studentsPerBench','includeCenter','centerMode','seatingMode'];
+  const ids = ['schoolName','examName','examSession','numRooms','numRows','numBenches','studentsPerBench','includeCenter','centerMode','seatingMode','pdfColorScheme','printLang'];
   let t = null;
   function schedule(){
     clearTimeout(t);
