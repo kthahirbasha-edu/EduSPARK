@@ -229,6 +229,11 @@ footer b{color:var(--primary)}
 <option value="bw">Black &amp; white - saves ink</option>
 </select>
 </div>
+<div class="checkbox-card" style="border-color:#fbbf24;background:#fffbeb">
+<input type="checkbox" id="gapSeating" checked>
+<div style="flex:1"><label for="gapSeating" style="margin:0;font-weight:700;cursor:pointer;color:var(--text)">Gap seating - keep the centre seat of each bench blank</label>
+<div style="font-size:.78rem;color:var(--muted)">This is <b>ON by default</b> and works automatically whenever only <b>one class</b> is entered (12-A, 12-B, 12-C ... all count as class 12). The <b>centre seat of every bench stays blank</b>, so every bench looks like <b>12th - empty - 12th</b> and no two students of the same class sit side by side. Only two of the three seats are used, so if the rooms fall short the app offers to extend the number of rooms. Untick this box if you want every seat filled. (With more than one class entered, normal seating is used - the side/behind rules already keep different classes apart.)</div></div>
+</div>
 <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
 <label style="margin:0">Seating Mode:</label>
 <select id="seatingMode" style="width:auto">
@@ -818,22 +823,25 @@ function updateCapacity(){
   const benches=parseInt(document.getElementById('numBenches').value)||2;
   const perBench=parseInt(document.getElementById('studentsPerBench').value)||3;
   const inc=document.getElementById('includeCenter').checked;
-  const benchPerRow = benches * perBench;
-  const totalPerRow = benchPerRow + (inc?1:0);
+  const gapMode=isGapSeating();
+  const seatsPerBench = gapMode ? Math.ceil(perBench/2) : perBench;   // gap seating uses alternate seats
+  const benchPerRow = benches * seatsPerBench;
+  const totalPerRow = benchPerRow + ((inc && !gapMode) ? 1 : 0);
   const benchPer=rows*benchPerRow;
   const totalPer=rows*totalPerRow;
   // Update displays
   const benchDisp=document.getElementById('benchSeatsPerRowDisplay');
   const totalDisp=document.getElementById('totalSeatsPerRowDisplay');
-  if(benchDisp) benchDisp.value = `${benches} x ${perBench} = ${benchPerRow}`;
-  if(totalDisp) totalDisp.value = inc ? `${benchPerRow} + 1 center = ${totalPerRow}` : `${benchPerRow}`;
-  benchTotalCapEl.textContent=`${rooms*benchPer}`;totalCapWithCenterEl.textContent=inc?`${rooms*totalPer}`:`No`;
+  if(benchDisp) benchDisp.value = gapMode ? `${benches} x ${seatsPerBench} of ${perBench} (gap) = ${benchPerRow}` : `${benches} x ${perBench} = ${benchPerRow}`;
+  if(totalDisp) totalDisp.value = (inc && !gapMode) ? `${benchPerRow} + 1 center = ${totalPerRow}` : (gapMode ? `${benchPerRow} (no center in gap mode)` : `${benchPerRow}`);
+  benchTotalCapEl.textContent=`${rooms*benchPer}`;
+  totalCapWithCenterEl.textContent = (inc && !gapMode) ? `${rooms*totalPer}` : (gapMode ? 'Not used (gap)' : 'No');
   const total=parseInt(totalStudentsEl.textContent)||0;
   if(total===0){capacityStatus.textContent='-';capacityAlert.innerHTML='';return;}
   const benchTotal=rooms*benchPer;const totalWith=rooms*totalPer;const cap=inc?totalWith:benchTotal;
-  if(cap<total){capacityStatus.textContent=`Short ${total-cap}`;capacityStatus.style.color='var(--danger)';capacityAlert.innerHTML=`<div class="alert alert-danger">Need ${total}, have ${cap} (Benches ${benches}x${perBench}=${benchPerRow}/row). Increase rooms/rows/benches.</div>`;}
+  if(cap<total){capacityStatus.textContent=`Short ${total-cap}`;capacityStatus.style.color='var(--danger)';const perRoomCap=(benchPerRow*rows)+((inc&&!gapMode)?rows:0);const needRooms=perRoomCap>0?Math.ceil(total/perRoomCap):rooms;capacityAlert.innerHTML=`<div class="alert alert-danger">Need ${total}, have ${cap} (${gapMode?'GAP seating: ':''}Benches ${benches}x${seatsPerBench}=${benchPerRow}/row). Increase rooms/rows/benches${gapMode?' - gap seating needs about '+(needRooms)+' rooms':''}.</div>`;}
   else if(inc&&total>benchTotal){capacityStatus.textContent=`Needs ${total-benchTotal} center`;capacityStatus.style.color='var(--warning)';capacityAlert.innerHTML=`<div class="alert alert-warning">Bench ${benchTotal} insufficient, will use ${total-benchTotal} center seats. Bench config ${benches}x${perBench}=${benchPerRow}/row.</div>`;}
-  else{capacityStatus.textContent=`OK`;capacityStatus.style.color='var(--success)';capacityAlert.innerHTML=`<div class="alert alert-success">Capacity OK - ${benches} benches x ${perBench} = ${benchPerRow}/row, Total ${totalPerRow}/row - High-Low: ${highLowOrderDisplay.textContent}</div>`;}
+  else{capacityStatus.textContent=gapMode?'OK (gap)':'OK';capacityStatus.style.color='var(--success)';capacityAlert.innerHTML=`<div class="alert alert-success">Capacity OK - ${gapMode?`GAP seating: ${benches} benches x ${seatsPerBench} of ${perBench} seats = ${benchPerRow}/row (pattern 12th - empty - 12th)`: `${benches} benches x ${perBench} = ${benchPerRow}/row`}, Total ${totalPerRow}/row - High-Low: ${highLowOrderDisplay.textContent}</div>`;}
 }
 document.getElementById('addClassBtn').addEventListener('click',()=>createClassRow());
 document.getElementById('numRooms').addEventListener('input',()=>renderRoomNameInputs());
@@ -882,326 +890,247 @@ function getClassGroups(){
 let lastResult=null;
 
 
+/* ======================================================================
+   SEAT-BY-SEAT ENGINE  (v11)
+
+   RULES
+   -----
+   1. When MORE THAN ONE class is being seated, every seat in a bench must
+      hold a DIFFERENT class from the seat next to it:
+          12 - 11 - 12 | 6 - 7 - 8 | 12 - 8 - 11 ...
+      The class with the most students still waiting is placed first, so
+      when 12th (75) and 11th (50) are seated the benches come out as
+          12 - 11 - 12 | 12 - 11 - 12 ...
+   2. When only ONE class is left to be seated (only 12th entered, or the
+      last 30 students of one class at the end of a big allotment) no other
+      class is available to sit beside them, so the middle seat of the bench
+      is LEFT EMPTY:
+          12 - empty - 12 | 12 - empty - 12
+   3. Sequential mode fills one column at a time from top to bottom, so the
+      numbers run in order (12101, 12102, 12103 ...). Random mode shuffles.
+   4. The seat directly behind is used for a different class / section when
+      possible (soft rule - a warning is shown, seat is still given).
+   ====================================================================== */
 function generateAllotment(groups,numRooms,rows,includeCenter,centerMode,roomNames,benches,perBench){
   benches = benches||2; perBench = perBench||3;
   const benchSeatsPerRow = benches * perBench;
-  const cols=includeCenter?benchSeatsPerRow+1:benchSeatsPerRow;
-  const centerCol=Math.floor(benchSeatsPerRow/2);
-  let benchCols=[];
-  for(let i=0;i<cols;i++){ if(includeCenter && i===centerCol) continue; benchCols.push(i); }
-  const seatingMode=document.getElementById('seatingMode')?.value||'random';
-  
-  // Helper to determine group type: Science (A,B) vs Arts (C,D)
+  const cols = includeCenter ? benchSeatsPerRow+1 : benchSeatsPerRow;
+  const centerCol = Math.floor(benchSeatsPerRow/2);
+  const seatingMode = (document.getElementById('seatingMode')||{}).value || 'random';
+  const sequential = seatingMode === 'sequential';
+  const warnings = [];
+
   function getGroupType(section){
     const sec = (section||'').toString().trim().toUpperCase();
     if(!sec) return 'OTHER';
     const first = sec[0];
-    if(first==='A' || first==='B') return 'SCIENCE'; // 12A,12A1,12B,12B1 etc Science
-    if(first==='C' || first==='D') return 'ARTS';     // 12C,12C1,12D,12D1 Arts
+    if(first==='A' || first==='B') return 'SCIENCE';
+    if(first==='C' || first==='D') return 'ARTS';
     return 'OTHER';
   }
 
-  const standardMap={};
+  // ---- one pool of students per CLASS ----
+  const standardMap = {};
   groups.forEach(g=>{
-    if(!standardMap[g.classNum]) standardMap[g.classNum]={classNum:g.classNum,students:[],label:`Class ${g.classNum}`};
+    if(!standardMap[g.classNum]) standardMap[g.classNum] = {classNum:g.classNum, students:[], label:'Class '+g.classNum};
     g.students.forEach(ex=>{
-      standardMap[g.classNum].students.push({examNo:ex,label:g.label,classNum:g.classNum,section:g.section,groupType:getGroupType(g.section)});
+      standardMap[g.classNum].students.push({examNo:ex, label:g.label, classNum:g.classNum, section:g.section, groupType:getGroupType(g.section)});
     });
   });
-  Object.values(standardMap).forEach(pool=>{
-    if(seatingMode==='random'){
-      pool.students=shuffleArray(pool.students);
-    }else{
-      pool.students.sort((a,b)=>a.examNo-b.examNo);
+  const classPools = Object.values(standardMap);
+  classPools.forEach(pool=>{
+    pool.students = (seatingMode==='random') ? shuffleArray(pool.students)
+                                             : pool.students.slice().sort((a,b)=>a.examNo-b.examNo);
+    pool.ptr = 0;
+    pool.remaining = pool.students.length;
+  });
+
+  const distinctSorted = classPools.map(p=>parseInt(p.classNum)).sort((a,b)=>a-b);
+  const highLowOrder = [];
+  (function(){
+    let low=0, high=distinctSorted.length-1;
+    while(low<=high){
+      highLowOrder.push(distinctSorted[high]); high--;
+      if(low<=high){ highLowOrder.push(distinctSorted[low]); low++; }
     }
-    pool.ptr=0;pool.remaining=pool.students.length;
-  });
-  let standards=Object.values(standardMap);
-  const distinctSorted=Object.keys(standardMap).map(x=>parseInt(x)).sort((a,b)=>a-b);
-  const highLowOrder=[];
-  let low=0,high=distinctSorted.length-1;
-  while(low<=high){
-    highLowOrder.push(distinctSorted[high]);high--;
-    if(low<=high){highLowOrder.push(distinctSorted[low]);low++;}
-  }
-  const stdByClassNum={};
-  standards.forEach(s=>{stdByClassNum[parseInt(s.classNum)]=s;});
+  })();
+  const isSingleStandard = distinctSorted.length === 1;
 
-  // For single standard case: create section pools from groups
-  let sectionPools = [];
-  let isSingleStandard = distinctSorted.length===1;
-  if(isSingleStandard){
-    sectionPools = groups.map(g=>{
-      let students = g.students.map(ex=>({examNo:ex,label:g.label,classNum:g.classNum,section:g.section,groupType:getGroupType(g.section)}));
-      if(seatingMode==='random') students=shuffleArray(students);
-      else students.sort((a,b)=>a.examNo-b.examNo);
-      return {label:g.label,section:g.section,classNum:g.classNum,groupType:getGroupType(g.section),students,ptr:0,remaining:students.length};
-    });
-  }
+  const gapForced = isGapSeating();                                  // tick box
+  const relaxAdjacency = isSingleStandard && !gapForced;             // single class, box off
 
-  let rooms=[];
+  // ---- rooms ----
+  const rooms = [];
   for(let r=0;r<numRooms;r++){
-    rooms.push({roomNo:r+1,roomName:roomNames[r]||`Room ${r+1}`,grid:Array.from({length:rows},()=>Array(cols).fill(null)),colAssignments:Array(cols).fill(null)});
-  }
-  let warnings=[];
-  const allColsToFill = (includeCenter && centerMode==='always') ? [...Array(cols).keys()] : benchCols;
-
-  function getNextStudentAvoidingSection(pool, topLabel, isSequential){
-    if(pool.remaining<=0) return null;
-    if(isSequential){
-      const stu=pool.students[pool.ptr++];
-      pool.remaining--;
-      if(topLabel && stu.label===topLabel){
-        warnings.push(`Sequential: same section behind ${stu.label} behind ${topLabel} (kept sequential)`);
-      }
-      return stu;
-    }
-    for(let i=pool.ptr;i<pool.students.length;i++){
-      if(topLabel==null || pool.students[i].label!==topLabel){
-        if(i!==pool.ptr){
-          const tmp=pool.students[pool.ptr];
-          pool.students[pool.ptr]=pool.students[i];
-          pool.students[i]=tmp;
-        }
-        const stu=pool.students[pool.ptr++];
-        pool.remaining--;
-        return stu;
-      }
-    }
-    const stu=pool.students[pool.ptr++];
-    pool.remaining--;
-    warnings.push(`Same section behind forced: ${stu.label} behind ${topLabel}`);
-    return stu;
+    rooms.push({
+      roomNo: r+1,
+      roomName: roomNames[r] || ('Room '+(r+1)),
+      grid: Array.from({length:rows}, ()=> Array(cols).fill(null)),
+      colAssignments: Array(cols).fill(null)
+    });
   }
 
-  // Helper to get section pool for single standard
-  function getNextStudentFromSectionPool(pool, topLabel, isSequential){
-    if(pool.remaining<=0) return null;
-    if(isSequential){
-      const stu=pool.students[pool.ptr++];
-      pool.remaining--;
-      return stu;
-    }
-    for(let i=pool.ptr;i<pool.students.length;i++){
-      if(topLabel==null || pool.students[i].label!==topLabel){
-        if(i!==pool.ptr){
-          const tmp=pool.students[pool.ptr];
-          pool.students[pool.ptr]=pool.students[i];
-          pool.students[i]=tmp;
-        }
-        const stu=pool.students[pool.ptr++];
-        pool.remaining--;
-        return stu;
-      }
-    }
-    const stu=pool.students[pool.ptr++];
-    pool.remaining--;
-    return stu;
+  // ---- column map: which bench / which seat inside the bench ----
+  const colMeta = [];
+  let benchNo = 0, seatNo = 0;
+  for(let i=0;i<cols;i++){
+    if(includeCenter && i===centerCol){ colMeta.push({col:i, isCenter:true, bench:null, seat:null}); continue; }
+    if(seatNo===0) benchNo++;
+    seatNo++;
+    colMeta.push({col:i, isCenter:false, bench:benchNo, seat:seatNo});
+    if(seatNo===perBench) seatNo = 0;
   }
 
-  for(let roomIdx=0;roomIdx<numRooms;roomIdx++){
-    const room=rooms[roomIdx];
-    let highLowPointer=0;
-    let prevClass=null;
-    let prevSection=null;
-    let prevGroupType=null;
+  // ---- choose which class goes into the next seat ----
+  function choosePool(leftCell, rightCell, behindCell){
+    let cands = classPools.filter(c=>c.remaining>0);
+    if(!cands.length) return null;
+    if(!relaxAdjacency){
+      const filtered = cands.filter(c=>
+        (!leftCell  || leftCell.classNum  !== c.classNum) &&
+        (!rightCell || rightCell.classNum !== c.classNum)
+      );
+      if(!filtered.length) return null;      // only the same class is left -> leave this seat empty
+      cands = filtered;
+    }
+    const strict = cands.filter(c=> !behindCell || behindCell.classNum !== c.classNum);
+    const list = (strict.length ? strict : cands).slice();
+    list.sort((a,b)=> b.remaining - a.remaining);
+    return list[0];
+  }
 
-    for(let colPos=0;colPos<allColsToFill.length;colPos++){
-      const col=allColsToFill[colPos];
-      if(centerMode==='if_needed' && includeCenter && col===centerCol) continue;
-      let chosen=null;
-
-      if(isSingleStandard){
-        // Single standard: choose section pool avoiding same section and same group nearby
-        let candidates = sectionPools.filter(p=>p.remaining>0);
-        if(candidates.length===0) break;
-        // First try to avoid same section AND same group
-        let filtered = candidates.filter(p=>p.section!==prevSection && p.groupType!==prevGroupType);
-        if(filtered.length===0){
-          // Try avoid same section only
-          filtered = candidates.filter(p=>p.section!==prevSection);
-        }
-        if(filtered.length===0){
-          // Try avoid same group only
-          filtered = candidates.filter(p=>p.groupType!==prevGroupType);
-        }
-        if(filtered.length===0) filtered = candidates;
-        // Prefer larger remaining, and for random mode shuffle, for sequential keep order
-        filtered.sort((a,b)=>b.remaining-a.remaining);
-        chosen = filtered[0];
-        // For colAssignment, we store section pool as if it were standard, but with classNum same
-        room.colAssignments[col]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
-        prevSection = chosen.section;
-        prevGroupType = chosen.groupType;
-        prevClass = chosen.classNum; // same for all
-        // Fill rows from this section pool
-        for(let row=0;row<rows;row++){
-          if(chosen.remaining<=0){
-            // Need to switch to another section pool avoiding left neighbor and same section behind
-            let leftSec = prevSection;
-            let leftGroup = prevGroupType;
-            // Find next pool
-            let nextCands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec && p.groupType!==leftGroup);
-            if(nextCands.length===0) nextCands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec);
-            if(nextCands.length===0) nextCands = sectionPools.filter(p=>p.remaining>0 && p.groupType!==leftGroup);
-            if(nextCands.length===0) nextCands = sectionPools.filter(p=>p.remaining>0);
-            if(nextCands.length===0) break;
-            nextCands.sort((a,b)=>b.remaining-a.remaining);
-            chosen = nextCands[0];
-            room.colAssignments[col]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
-            prevSection = chosen.section;
-            prevGroupType = chosen.groupType;
-            warnings.push(`${room.roomName} Col ${col+1} Row ${row+1}: switched section from ${leftSec} to ${chosen.section} to avoid same section/group nearby`);
-          }
-          const topLabel=row>0?room.grid[row-1][col]?.label:null;
-          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
-          const stu=getNextStudentFromSectionPool(chosen, topLabel, isSequential);
-          if(!stu) break;
-          room.grid[row][col]={...stu};
-        }
-      }else{
-        // Multi-standard: original high-low logic with extra group avoidance
-        let attempts=0;
-        while(attempts<highLowOrder.length*2){
-          const desiredClassNum=highLowOrder[highLowPointer % highLowOrder.length];
-          highLowPointer++;
-          attempts++;
-          const pool=stdByClassNum[desiredClassNum];
-          if(!pool || pool.remaining<=0) continue;
-          if(pool.classNum===prevClass) continue;
-          chosen=pool;
+  function takeStudent(pool, behindCell){
+    const arr = pool.students;
+    if(!sequential){
+      // random: try to avoid the same section sitting directly behind
+      for(let i=pool.ptr;i<arr.length;i++){
+        if(!behindCell || arr[i].section !== behindCell.section){
+          if(i!==pool.ptr){ const t=arr[pool.ptr]; arr[pool.ptr]=arr[i]; arr[i]=t; }
           break;
         }
-        if(!chosen){
-          let cands=standards.filter(s=>s.remaining>0 && s.classNum!==prevClass);
-          if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
-          if(cands.length===0) break;
-          cands.sort((a,b)=>b.remaining-a.remaining);
-          chosen=cands[0];
+      }
+    }
+    const stu = arr[pool.ptr++];
+    pool.remaining--;
+    return stu;
+  }
+
+  // ---- main fill ----------------------------------------------------
+  for(let roomIdx=0; roomIdx<numRooms; roomIdx++){
+    const room = rooms[roomIdx];
+
+    if(sequential){
+      /* one class per column, running in exam-number order from top to
+         bottom:  column 1 = 12101, 12102 ...   column 2 = next class ... */
+      let prev = {col:-1, bench:null, isCenter:true, hasCell:false, cls:null};
+      for(let mi=0; mi<colMeta.length; mi++){
+        const meta = colMeta[mi];
+        const skipped = (meta.isCenter && !(includeCenter && centerMode==='always')) ||
+                        (gapForced && !meta.isCenter && (meta.seat % 2 === 0));
+        if(skipped){ prev = {col:meta.col, bench:meta.bench, isCenter:meta.isCenter, hasCell:false, cls:null}; continue; }
+
+        const adjacent = prev.hasCell && !meta.isCenter && !prev.isCenter &&
+                         prev.bench === meta.bench && (meta.col - prev.col === 1);
+
+        let cands = classPools.filter(p=>p.remaining>0);
+        if(!relaxAdjacency && adjacent && prev.cls != null){
+          cands = cands.filter(p=> String(p.classNum) !== String(prev.cls));
         }
-        room.colAssignments[col]=chosen;
-        prevClass=chosen.classNum;
-        // For multi-standard, we don't track section/group for column, but we will avoid same section behind via getNextStudent
-        for(let row=0;row<rows;row++){
-          if(chosen.remaining<=0){
-            let leftNeighborClass=null;
-            if(colPos>0){
-              const leftCol=allColsToFill[colPos-1];
-              if(room.colAssignments[leftCol]) leftNeighborClass=room.colAssignments[leftCol].classNum;
-            }
-            let nextCands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass);
-            if(nextCands.length===0) nextCands=standards.filter(s=>s.remaining>0);
-            if(nextCands.length===0) break;
-            nextCands.sort((a,b)=>b.remaining-a.remaining);
-            chosen=nextCands[0];
-            if(room.colAssignments[col].classNum!==chosen.classNum){
-              warnings.push(`${room.roomName} Col ${col+1} Row ${row+1}: switched from Class ${room.colAssignments[col].classNum} to Class ${chosen.classNum}`);
-            }
+        cands = cands.slice().sort((a,b)=> b.remaining - a.remaining);
+        let pool = cands.length ? cands[0] : null;
+        let colHasCell = false, colClass = pool ? String(pool.classNum) : null;
+
+        for(let row=0; row<rows; row++){
+          if(room.grid[row][meta.col]) continue;
+          const behindCell = row>0 ? room.grid[row-1][meta.col] : null;
+          if(!pool || pool.remaining<=0){
+            const leftCell = adjacent ? room.grid[row][prev.col] : null;
+            pool = choosePool(leftCell, null, behindCell);
+            if(!pool) continue;
           }
-          const topLabel=row>0?room.grid[row-1][col]?.label:null;
-          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
-          const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
-          if(!stu) break;
-          room.grid[row][col]={...stu};
+          room.grid[row][meta.col] = takeStudent(pool, behindCell);
+          colHasCell = true;
+          colClass = String(pool.classNum);
+        }
+        prev = {col:meta.col, bench:meta.bench, isCenter:meta.isCenter, hasCell:colHasCell, cls:colClass};
+      }
+    } else {
+      for(let row=0; row<rows; row++){
+        let leftCell = null, prevMeta = null;
+        for(let mi=0; mi<colMeta.length; mi++){
+          const meta = colMeta[mi];
+          if(prevMeta && !prevMeta.isCenter && !meta.isCenter && prevMeta.bench !== meta.bench) leftCell = null;
+          if(meta.isCenter && !(includeCenter && centerMode==='always')){ prevMeta = meta; leftCell = null; continue; }
+          if(gapForced && !meta.isCenter && (meta.seat % 2 === 0)){ prevMeta = meta; leftCell = null; continue; }
+
+          const behindCell = row>0 ? room.grid[row-1][meta.col] : null;
+          const pool = choosePool(leftCell, null, behindCell);
+          if(!pool){ prevMeta = meta; leftCell = null; continue; }
+
+          room.grid[row][meta.col] = takeStudent(pool, behindCell);
+          leftCell = room.grid[row][meta.col];
+          prevMeta = meta;
         }
       }
     }
   }
 
-  let leftover=0;
-  let centerUsed=0;
-  if(isSingleStandard){
-    leftover=sectionPools.reduce((s,x)=>s+x.remaining,0);
-  }else{
-    leftover=standards.reduce((s,x)=>s+x.remaining,0);
-  }
-
-  if(includeCenter && centerMode==='if_needed' && leftover>0){
-    for(let roomIdx=0;roomIdx<numRooms && leftover>0;roomIdx++){
-      const room=rooms[roomIdx];
-      // For single standard, left/right group avoidance
-      let leftSec = null, rightSec = null, leftGroup = null, rightGroup = null;
-      if(isSingleStandard){
-        // Find section/group of columns 2 and 4 (around center)
-        const leftCol = benchCols[1]!==undefined ? benchCols[1] : null;
-        const rightCol = benchCols[2]!==undefined ? benchCols[2] : null;
-        if(leftCol!==null && room.colAssignments[leftCol]) { leftSec=room.colAssignments[leftCol].section; leftGroup=room.colAssignments[leftCol].groupType; }
-        if(rightCol!==null && room.colAssignments[rightCol]) { rightSec=room.colAssignments[rightCol].section; rightGroup=room.colAssignments[rightCol].groupType; }
-      }
-      let leftNeighborClass=room.colAssignments[2]?.classNum||null;
-      let rightNeighborClass=room.colAssignments[4]?.classNum||null;
-      let chosen=null;
-
-      if(isSingleStandard){
-        let cands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec && p.section!==rightSec && p.groupType!==leftGroup && p.groupType!==rightGroup);
-        if(cands.length===0) cands = sectionPools.filter(p=>p.remaining>0 && p.section!==leftSec && p.section!==rightSec);
-        if(cands.length===0) cands = sectionPools.filter(p=>p.remaining>0 && p.groupType!==leftGroup && p.groupType!==rightGroup);
-        if(cands.length===0) cands = sectionPools.filter(p=>p.remaining>0);
-        if(cands.length===0) break;
-        cands.sort((a,b)=>b.remaining-a.remaining);
-        chosen=cands[0];
-        room.colAssignments[centerCol]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
-        for(let row=0;row<rows && leftover>0;row++){
-          if(room.grid[row][centerCol]) continue;
-          if(chosen.remaining<=0){
-            let nc = sectionPools.filter(p=>p.remaining>0);
-            if(nc.length===0) break;
-            nc.sort((a,b)=>b.remaining-a.remaining);
-            chosen=nc[0];
-            room.colAssignments[centerCol]= {classNum:chosen.classNum, label:chosen.label, section:chosen.section, groupType:chosen.groupType, isSectionPool:true, poolRef:chosen};
-          }
-          const topLabel=row>0?room.grid[row-1][centerCol]?.label:null;
-          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
-          const stu=getNextStudentFromSectionPool(chosen, topLabel, isSequential);
-          if(!stu) break;
-          room.grid[row][centerCol]={...stu};
-          centerUsed++; leftover=isSingleStandard?sectionPools.reduce((s,x)=>s+x.remaining,0):standards.reduce((s,x)=>s+x.remaining,0);
-        }
-      }else{
-        let attempts=0; let hlPtr=0;
-        while(attempts<highLowOrder.length*2){
-          const desired=highLowOrder[hlPtr % highLowOrder.length];hlPtr++;attempts++;
-          const pool=stdByClassNum[desired];
-          if(!pool || pool.remaining<=0) continue;
-          if(pool.classNum===leftNeighborClass || pool.classNum===rightNeighborClass) continue;
-          chosen=pool;break;
-        }
-        if(!chosen){
-          let cands=standards.filter(s=>s.remaining>0 && s.classNum!==leftNeighborClass && s.classNum!==rightNeighborClass);
-          if(cands.length===0) cands=standards.filter(s=>s.remaining>0);
-          if(cands.length===0) break;
-          cands.sort((a,b)=>b.remaining-a.remaining);
-          chosen=cands[0];
-        }
-        room.colAssignments[centerCol]=chosen;
-        for(let row=0;row<rows && leftover>0;row++){
-          if(room.grid[row][centerCol]) continue;
-          if(chosen.remaining<=0){
-            let cands=standards.filter(s=>s.remaining>0);
-            if(cands.length===0) break;
-            cands.sort((a,b)=>b.remaining-a.remaining);
-            chosen=cands[0];
-            room.colAssignments[centerCol]=chosen;
-          }
-          const topLabel=row>0?room.grid[row-1][centerCol]?.label:null;
-          const isSequential = (document.getElementById('seatingMode')?.value==='sequential');
-          const stu=getNextStudentAvoidingSection(chosen, topLabel, isSequential);
-          if(!stu) break;
-          room.grid[row][centerCol]={...stu};
-          centerUsed++;leftover=standards.reduce((s,x)=>s+x.remaining,0);
-        }
+  // ---- centre seats, only when needed ----
+  if(includeCenter && centerMode!=='always'){
+    for(let roomIdx=0; roomIdx<numRooms; roomIdx++){
+      const room = rooms[roomIdx];
+      for(let row=0; row<rows; row++){
+        if(room.grid[row][centerCol]) continue;
+        if(!classPools.some(c=>c.remaining>0)) continue;
+        const left   = centerCol>0      ? room.grid[row][centerCol-1] : null;
+        const right  = centerCol<cols-1 ? room.grid[row][centerCol+1] : null;
+        const behind = row>0            ? room.grid[row-1][centerCol] : null;
+        const pool = choosePool(left, right, behind);
+        if(!pool) continue;
+        room.grid[row][centerCol] = takeStudent(pool, behind);
       }
     }
-  }else if(includeCenter && centerMode==='if_needed'){
-    rooms.forEach(r=>{ if(!r.grid.some(row=>row[centerCol])) r.colAssignments[centerCol]=null; });
   }
-  if(includeCenter && centerMode==='always'){
-    centerUsed=0;
-    rooms.forEach(room=>{for(let row=0;row<rows;row++) if(room.grid[row][centerCol]) centerUsed++;});
+
+  // ---- what ended up in each column (for the PDF / preview headers) ----
+  for(let c=0;c<cols;c++){
+    const seen = new Set();
+    rooms.forEach(room=>{
+      for(let r=0;r<rows;r++){
+        const cell = room.grid[r][c];
+        if(cell) seen.add(String(cell.classNum));
+      }
+    });
+    const assign = seen.size===0 ? null
+                 : (seen.size===1 ? {classNum:Array.from(seen)[0]} : {classNum:'Mixed', mixed:true});
+    rooms.forEach(room=>{ room.colAssignments[c] = assign; });
   }
-  const finalLeftover=isSingleStandard?sectionPools.reduce((s,x)=>s+x.remaining,0):standards.reduce((s,x)=>s+x.remaining,0);
-  const totalAllotted=groups.reduce((s,x)=>s+x.count,0)-finalLeftover;
-  return {rooms,standards: isSingleStandard?sectionPools:standards,originalGroups:groups,warnings,leftover:finalLeftover,totalAllotted,cols,rows,includeCenter,benchCols,centerCol,centerUsed,centerMode,highLowOrder,benches,perBench,isSingleStandard};
+
+  // ---- totals ----
+  let totalAllotted = 0, centerUsed = 0, gapUsed = 0;
+  rooms.forEach(room=>{
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const cell = room.grid[r][c];
+        if(cell) totalAllotted++;
+        if(includeCenter && c===centerCol && cell) centerUsed++;
+        if(!cell && !(includeCenter && c===centerCol)) gapUsed++;
+      }
+    }
+  });
+  const leftover = classPools.reduce((s,p)=>s+p.remaining,0);
+
+  if(gapUsed>0 && leftover>0){
+    warnings.push('Some seats were left empty because only one class was still waiting - extend the rooms to seat everybody.');
+  }
+
+  return {
+    rooms, standards: classPools, originalGroups: groups, warnings,
+    leftover, totalAllotted, cols, rows, includeCenter,
+    benchCols: colMeta.filter(m=>!m.isCenter).map(m=>m.col),
+    centerCol, centerUsed, centerMode, highLowOrder, benches, perBench,
+    isSingleStandard, gapSeating: gapForced, gapUsed, seatingMode
+  };
 }
 
 
@@ -1266,17 +1195,23 @@ function renderPreview(result){
         }
         pos=`B${benchIdx}-S${seatIdx}`;
       }
-      const lbl=c?`Class ${c.classNum}`:(result.includeCenter&&i===3?'BLANK':'-');
-      return `<th class="${result.includeCenter&&i===3?'center-col':''}">${pos}<br><small>${lbl}</small></th>`;
+      let lbl;
+      if(c){ lbl = c.mixed ? 'Mixed' : `Class ${c.classNum}`; }
+      else if(result.includeCenter&&i===result.centerCol){ lbl='BLANK'; }
+      else { lbl=' -'; }
+      return `<th class="${result.includeCenter&&i===result.centerCol?'center-col':''}">${pos}<br><small>${lbl}</small></th>`;
     }).join('');
     div.innerHTML=`
-      <div class="preview-room-header"><span>${room.roomName} — ${totalInRoom} students | High-Low: ${result.highLowOrder.map(x=>`C${x}`).join(',')}</span><span style="font-size:.72rem;color:var(--muted)">${room.colAssignments.map(c=>c?`Class ${c.classNum}`:'-').join(' | ')}</span></div>
+      <div class="preview-room-header"><span>${room.roomName} — ${totalInRoom} students | High-Low: ${result.highLowOrder.map(x=>`C${x}`).join(',')}</span><span style="font-size:.72rem;color:var(--muted)">${room.colAssignments.map(c=>c?(c.mixed?'Mixed':`Class ${c.classNum}`):'-').join(' | ')}</span></div>
       <div class="preview-grid"><table>
         <thead><tr><th>Row</th>${benchHeader}</tr><tr><th></th>${colHeaders}</tr></thead>
         <tbody>
           ${room.grid.map((row,r)=>`<tr><th>Row ${r+1}</th>${row.map((cell,cIdx)=>{
-            const isCenter=result.includeCenter&&cIdx===3;
-            if(!cell){return isCenter?`<td class="center-empty">BLANK</td>`:`<td class="empty-cell">EMPTY</td>`;}
+            const isCenter=result.includeCenter&&cIdx===result.centerCol;
+            if(!cell){
+              if(isCenter) return `<td class="center-empty">BLANK</td>`;
+              return `<td class="empty-cell" style="background:#f8fafc;color:#94a3b8">GAP</td>`;
+            }
             return `<td class="${isCenter?'center-col':''}"><span class="cell-exam">${cell.examNo}</span><span class="cell-class">${cell.label}</span></td>`;
           }).join('')}</tr>`).join('')}
         </tbody>
@@ -1302,18 +1237,58 @@ document.getElementById('generateBtn').addEventListener('click',()=>{
   if(!examDate){vMsg.innerHTML=`<div class="alert alert-danger">Select date</div>`;return;}
   const benches=parseInt(document.getElementById('numBenches').value)||2;
   const perBench=parseInt(document.getElementById('studentsPerBench').value)||3;
-  const benchTotal=numRooms*numRows*benches*perBench;
-  const totalWith=benchTotal+(includeCenter?numRooms*numRows:0);
+  const gapMode=isGapSeating();
+  const seatsPerBench=gapMode?Math.ceil(perBench/2):perBench;
+  const benchTotal=numRooms*numRows*benches*seatsPerBench;
+  const totalWith=benchTotal+((includeCenter&&!gapMode)?numRooms*numRows:0);
   const totalStudents=groups.reduce((s,g)=>s+g.count,0);
   const cap=includeCenter?totalWith:benchTotal;
-  if(cap<totalStudents){vMsg.innerHTML=`<div class="alert alert-danger">Capacity short: need ${totalStudents}, available ${cap} (${numRooms} rooms x ${numRows} rows x ${benches} benches x ${perBench} per bench${includeCenter?' + center':''}). Increase rooms / rows / benches.</div>`;return;}
+  if(cap<totalStudents){
+    const perRoomCap=(numRows*benches*seatsPerBench)+((includeCenter&&!gapMode)?numRows:0);
+    const needRooms=perRoomCap>0?Math.ceil(totalStudents/perRoomCap):numRooms;
+    vMsg.innerHTML=`<div class="alert alert-danger">Capacity short: need <b>${totalStudents}</b>, available <b>${cap}</b> with ${numRooms} rooms (${numRows} rows x ${benches} benches x ${seatsPerBench} seats${gapMode?' - gap seating':''}${(includeCenter&&!gapMode)?' + center':''}).<br><button class="btn btn-primary" id="autoRoomsBtn" style="margin-top:9px">Extend to ${needRooms} rooms and generate</button></div>`;
+    const ab=document.getElementById('autoRoomsBtn');
+    if(ab) ab.addEventListener('click',()=>{
+      const oldNames=getRoomNames();
+      document.getElementById('numRooms').value=needRooms;
+      renderRoomNameInputs();
+      const ins=document.querySelectorAll('.roomNameInput');
+      oldNames.forEach((nm,i)=>{ if(ins[i]&&nm) ins[i].value=nm; });
+      updateCapacity();
+      document.getElementById('generateBtn').click();
+    });
+    return;
+  }
   const result=generateAllotment(groups,numRooms,numRows,includeCenter,centerMode,roomNames,benches,perBench);
   result.schoolName=schoolName;result.examDate=examDate;result.examSession=document.getElementById('examSession').value;result.examName=document.getElementById('examName').value.trim();
   result.seatingMode=document.getElementById('seatingMode')?.value||'random';
+  result.gapSeating=isGapSeating();
   lastResult=result;
-  vMsg.innerHTML=`<div class="alert alert-success">✅ Generated ${result.totalAllotted} with High-Low order ${result.highLowOrder.join('->')} | Mode: ${result.seatingMode==='random'?'Random (shuffled)':'Sequential (6101,6102...)'}. One column = one std.</div>`;
+  const ruleText = result.gapSeating
+    ? '<b>Single class seating: every bench is 12th - empty - 12th (middle seat kept blank).</b>'
+    : (result.isSingleStandard ? '<b>Single class, gap box unticked: every seat is filled.</b>'
+                               : '<b>Different classes in every seat of a bench - no two students of the same class sit next to each other.</b>');
+  const gapNote = result.leftover>0 ? ` <br><b>${result.leftover} student(s) could not be seated</b> - click "Extend to N rooms and generate" to seat everybody.` : '';
+  vMsg.innerHTML=`<div class="alert alert-success">✅ Generated ${result.totalAllotted} of ${result.totalAllotted+result.leftover} | High-Low order ${result.highLowOrder.join('->')} | Mode: ${result.seatingMode==='random'?'Random (shuffled)':'Sequential (6101,6102...)'}.<br>${ruleText}${gapNote}</div>`;
   const wBox=document.getElementById('warningsBox');
   wBox.innerHTML=result.warnings.length?`<div class="alert alert-warning">${result.warnings.slice(0,10).join('<br>')}</div>`:`<div class="alert alert-success">✅ High-Low OK</div>`;
+  if(result.leftover>0){
+    const usedRooms=parseInt(document.getElementById('numRooms').value)||1;
+    const perRoom=Math.max(1, Math.floor(result.totalAllotted/usedRooms));
+    const needRooms=Math.ceil((result.totalAllotted+result.leftover)/perRoom)+1;
+    wBox.innerHTML += `<div class="alert alert-danger" style="margin-top:8px">${result.leftover} student(s) still waiting - the middle-seat rule needs more space.<br>
+      <button class="btn btn-primary" id="autoRoomsBtn2" style="margin-top:8px">Extend to ${needRooms} rooms and generate</button></div>`;
+    const ab2=document.getElementById('autoRoomsBtn2');
+    if(ab2) ab2.addEventListener('click',()=>{
+      const oldNames=getRoomNames();
+      document.getElementById('numRooms').value=needRooms;
+      renderRoomNameInputs();
+      const ins=document.querySelectorAll('.roomNameInput');
+      oldNames.forEach((nm,i)=>{ if(ins[i]&&nm) ins[i].value=nm; });
+      updateCapacity();
+      document.getElementById('generateBtn').click();
+    });
+  }
   renderPreview(result);
   document.getElementById('resultsSection').style.display='block';
   document.getElementById('resultsSection').scrollIntoView({behavior:'smooth'});
@@ -1378,7 +1353,10 @@ document.getElementById('pdf1Btn').addEventListener('click',()=>{
           }
           pos=`B${benchIdx}-S${seatIdx}`;
         }
-        const classLabel=c?`Class ${c.classNum}`:(lastResult.includeCenter&&i===3?'BLANK':'-');
+        let classLabel;
+        if(c){ classLabel = c.mixed ? 'Mixed' : `Class ${c.classNum}`; }
+        else if(lastResult.includeCenter && i===lastResult.centerCol){ classLabel='BLANK'; }
+        else { classLabel=' -'; }
         headRow.push(`${pos}\n${classLabel}`);
       });
 
@@ -1389,8 +1367,8 @@ document.getElementById('pdf1Btn').addEventListener('click',()=>{
           if(cell){
             rowData.push(`${cell.examNo}\n${cell.label}`);
           }else{
-            if(lastResult.includeCenter&&cIdx===3) rowData.push('BLANK');
-            else rowData.push('EMPTY');
+            if(lastResult.includeCenter&&cIdx===lastResult.centerCol) rowData.push('BLANK');
+            else rowData.push('GAP (kept empty)');
           }
         });
         bodyRows.push(rowData);
@@ -1650,6 +1628,35 @@ document.getElementById('pdf4Btn').addEventListener('click', function(){
   }
 });
 
+
+/* ==================================================================
+   v8 - GAP SEATING helper
+   When ticked, every second seat inside a bench is left empty, so the
+   row looks like 12th - empty - 12th and no two students of the same
+   class sit side by side. The app also offers to extend the rooms.
+   ================================================================== */
+function isGapSeating(){
+  const el = document.getElementById('gapSeating');
+  if(!el || !el.checked) return false;
+  // gap seating applies when a single class is being seated (e.g. only 12th)
+  try{ return getDistinctStandards().length <= 1; }catch(e){ return true; }
+}
+function gapCheckedButIgnored(){
+  const el = document.getElementById('gapSeating');
+  if(!el || !el.checked) return false;
+  try{ return getDistinctStandards().length > 1; }catch(e){ return false; }
+}
+(function gapSeatingWiring(){
+  const el = document.getElementById('gapSeating');
+  if(!el) return;
+  el.addEventListener('change', function(){
+    updateCapacity();
+    const info = document.getElementById('capacityAlert');
+    if(el.checked && info && !info.innerHTML){
+      info.innerHTML = '<div class="alert alert-warning">Gap seating ON - the centre seat of every bench stays blank (12th - empty - 12th). If the rooms fall short, the app will offer to extend them.</div>';
+    }
+  });
+})();
 /* ---------------- PRINT: room sign board + attendance sheet ---------------- */
 const SHEET_TEXT = {
   en:{board:'SEATING - EXAM HALL', room:'ROOM', students:'students', classes:'Classes in this room',
@@ -1795,6 +1802,9 @@ function readSettings(){
     centerMode:      document.getElementById('centerMode').value,
     seatingMode:     document.getElementById('seatingMode').value,
     pdfColorScheme:  document.getElementById('pdfColorScheme') ? document.getElementById('pdfColorScheme').value : 'default',
+    gapSeating:      !!(document.getElementById('gapSeating') && document.getElementById('gapSeating').checked),
+    gapSeatingV2:    !!(document.getElementById('gapSeating') && document.getElementById('gapSeating').checked),
+    gapSeatingV3:    !!(document.getElementById('gapSeating') && document.getElementById('gapSeating').checked),
     printLang:       document.getElementById('printLang') ? document.getElementById('printLang').value : 'en',
     roomNames:       roomInputs
   };
@@ -1813,6 +1823,8 @@ function applySettings(s){
   if(s.centerMode)  document.getElementById('centerMode').value  = s.centerMode;
   if(s.seatingMode) document.getElementById('seatingMode').value = s.seatingMode;
   if(s.pdfColorScheme){ const el=document.getElementById('pdfColorScheme'); if(el) el.value=s.pdfColorScheme; }
+  // only the newer key is trusted, so older saved data cannot switch gap seating off by surprise
+  if(typeof s.gapSeatingV2 === 'boolean'){ const el=document.getElementById('gapSeating'); if(el) el.checked=s.gapSeatingV2; }
   if(s.printLang){ const el=document.getElementById('printLang'); if(el) el.value=s.printLang; }
   if(s.pdfColorScheme){ const el=document.getElementById('pdfColorScheme'); if(el) el.value=s.pdfColorScheme; }
   if(s.printLang){ const el=document.getElementById('printLang'); if(el) el.value=s.printLang; }
@@ -1941,7 +1953,7 @@ function renderStoredSummary(){
 
 /* ---- auto-keep settings (school name, rooms, benches...) ---- */
 (function autosaveSettings(){
-  const ids = ['schoolName','examName','examSession','numRooms','numRows','numBenches','studentsPerBench','includeCenter','centerMode','seatingMode','pdfColorScheme','printLang'];
+  const ids = ['schoolName','examName','examSession','numRooms','numRows','numBenches','studentsPerBench','includeCenter','centerMode','seatingMode','pdfColorScheme','printLang','gapSeating'];
   let t = null;
   function schedule(){
     clearTimeout(t);

@@ -51,6 +51,25 @@ NEW IN THIS VERSION
    corridor) plus the attendance sheet, printed straight from the browser.
    The printed sheets can be in English, Tamil or Hindi.
 
+9. SEATING RULES (seat by seat)
+   a) MORE THAN ONE CLASS being seated: every seat of a bench gets a DIFFERENT
+      class -  12 - 11 - 12 | 6 - 7 - 8 | 12 - 8 - 11 ...  The class with more
+      students waiting is placed first, so 12th (75) + 11th (50) comes out as
+          12 - 11 - 12 | 12 - 11 - 12 ...
+      No two students of the same class ever sit next to each other.
+   b) ONLY ONE CLASS (only 12th entered, or the last 30 students of one class at
+      the end of a big allotment): there is no other class to sit beside them,
+      so the CENTRE SEAT OF EVERY BENCH IS LEFT EMPTY -
+          12 - empty - 12 | 12 - empty - 12
+      This is automatic; the "Gap seating" tick box only switches it off if you
+      ever want every seat filled for a single class.
+   c) When seats run out because of the empty middle seat, a one-click
+      "Extend to N rooms and generate" button adds the rooms and generates again.
+   d) SEQUENTIAL mode now really is sequential: each column is filled from top to
+      bottom with one class in exam-number order (column 1 = 6101, 6102, 6103 ...
+      then the next column takes the next class), so the numbers run in order on
+      the sheet. RANDOM mode shuffles the students instead.
+
 All the earlier features are unchanged: one column = one standard (sections
 when a single standard is entered), high-low order, section shuffling,
 side / behind rules, sequential & random modes, customizable benches and
